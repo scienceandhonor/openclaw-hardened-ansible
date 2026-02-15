@@ -13,7 +13,7 @@
     state: present
 
 - name: Check if kernel reboot is required (needrestart)
-  command: needrestart -k -r l
+  command: needrestart -b -k
   register: needrestart_result
   changed_when: false
   failed_when: false
@@ -37,13 +37,8 @@
       - lsb-release
       - python3-pip
       - podman
+      - podman-compose
     state: present
-
-- name: Install Podman Compose (via PIP)
-  pip:
-    name: podman-compose
-    state: present
-    executable: pip3
 
 # Tailscale Installation
 - name: Add Tailscale GPG Key
@@ -112,6 +107,73 @@
     state: started
     enabled: true
 
-- name: Display Tailscale Instruction
+- name: Check Tailscale Status
+  command: tailscale status
+  register: tailscale_status
+  ignore_errors: true
+  changed_when: false
+
+- name: Start Tailscale login
+  shell: tailscale up --ssh 2>&1 || true
+  when: tailscale_status.rc != 0 or 'Logged out' in (tailscale_status.stdout | default(''))
+  async: 300
+  poll: 0
+  register: tailscale_login_job
+
+- name: Get Tailscale auth URL
+  shell: |
+    for i in $(seq 1 30); do
+      URL=$(tailscale status --json 2>/dev/null | python3 -c "
+    import sys, json
+    try:
+        data = json.load(sys.stdin)
+        url = data.get('AuthURL', '')
+        if url:
+            print(url)
+    except Exception as e:
+        print(f'ERROR: Failed to parse tailscale status JSON: {e}', file=sys.stderr)
+    ")
+      if [ -n "$URL" ]; then
+        echo "$URL"
+        exit 0
+      fi
+      sleep 2
+    done
+    echo "ERROR: Could not retrieve Tailscale auth URL"
+    exit 1
+  register: tailscale_auth_url
+  when: tailscale_login_job is not skipped
+
+- name: Authenticate Tailscale
+  pause:
+    prompt: |
+
+      ========================================================
+      TAILSCALE AUTHENTICATION REQUIRED
+      ========================================================
+
+      Open this URL in your browser to add the VPS to your tailnet:
+
+      {{ tailscale_auth_url.stdout }}
+
+      Press ENTER once you have authenticated...
+      ========================================================
+  when: tailscale_login_job is not skipped and tailscale_auth_url.rc == 0
+
+- name: Wait for Tailscale login to complete
+  async_status:
+    jid: "{{ tailscale_login_job.ansible_job_id }}"
+  register: tailscale_login_result
+  until: tailscale_login_result.finished
+  retries: 60
+  delay: 5
+  when: tailscale_login_job is not skipped
+
+- name: Verify Tailscale connection
+  command: tailscale status
+  register: tailscale_final_status
+  changed_when: false
+
+- name: Show Tailscale status
   debug:
-    msg: "Please run 'sudo tailscale up --ssh' manually to connect to your tailnet if not already connected."
+    msg: "{{ tailscale_final_status.stdout_lines }}"
