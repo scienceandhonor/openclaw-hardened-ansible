@@ -111,5 +111,33 @@ podman exec openclaw-agent openclaw doctor
 - `roles/tier3-setup/`: The core hardening logic.
 - `requirements.yml`: Ansible dependencies (auto-installed).
 
+## Troubleshooting: Pairing Required
+
+If you see "disconnected (1008): pairing required" when accessing the dashboard:
+
+1. Get your gateway token (shown in deployment summary, or retrieve via):
+   ```bash
+   podman exec -it openclaw-agent printenv OPENCLAW_GATEWAY_TOKEN
+   ```
+
+2. List pending devices:
+   ```bash
+   podman exec -it openclaw-agent \
+     openclaw devices list \
+     --url ws://127.0.0.1:18789 \
+     --token "$GATEWAY_TOKEN" \
+     --json
+   ```
+
+3. Approve your device (copy `requestId` from output):
+   ```bash
+   podman exec -it openclaw-agent \
+     openclaw devices approve <requestId> \
+     --url ws://127.0.0.1:18789 \
+     --token "$GATEWAY_TOKEN"
+   ```
+
+4. Reload the dashboard.
+
 ## 📄 License
 Provided as-is for harm-reduction. OpenClaw is architecturally "spicy"—this deployment reduces the blast radius but prompt injection remains an inherent risk of LLMs. Use burner accounts only.
