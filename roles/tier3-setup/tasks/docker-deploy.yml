@@ -60,8 +60,8 @@
 
 - name: Set Final Secrets
   set_fact:
-    litellm_key: "{{ existing_master_key if (existing_master_key | length > 0) else litellm_master_key_gen.stdout }}"
-    openclaw_token: "{{ existing_openclaw_token if (existing_openclaw_token | length > 0) else openclaw_token_gen.stdout }}"
+    litellm_key: "{{ existing_master_key if (existing_master_key | default('') | length > 0) else litellm_master_key_gen.stdout }}"
+    openclaw_token: "{{ existing_openclaw_token if (existing_openclaw_token | default('') | length > 0) else openclaw_token_gen.stdout }}"
 
 - name: Create .env file for Compose
   template:
@@ -234,7 +234,7 @@
 
 - name: Rebuild Podman Images
   shell: |
-    podman-compose --verbose build
+    podman-compose build
   args:
     chdir: "{{ docker_dir }}"
   become: true
@@ -252,7 +252,7 @@
 - name: Start Podman Stack (Rootless)
   shell: |
     # We pass critical vars via CLI to ensure injection
-    podman-compose --verbose up -d
+    podman-compose up -d
     # Force restart agent to ensure config pick-up
     podman restart openclaw-agent
   args:
@@ -282,6 +282,32 @@
     XDG_RUNTIME_DIR: "/run/user/{{ ansible_facts['getent_passwd'][openclaw_user][1] }}"
   ignore_errors: true
 
+- name: Wait for OpenClaw Gateway to be ready
+  shell: curl -sf http://127.0.0.1:18789 > /dev/null
+  become: true
+  become_user: "{{ openclaw_user }}"
+  environment:
+    XDG_RUNTIME_DIR: "/run/user/{{ ansible_facts['getent_passwd'][openclaw_user][1] }}"
+  register: gateway_ready
+  retries: 20
+  delay: 3
+  until: gateway_ready.rc == 0
+
+- name: Pair local agent with gateway
+  shell: podman exec openclaw-agent openclaw dashboard --no-open
+  become: true
+  become_user: "{{ openclaw_user }}"
+  environment:
+    XDG_RUNTIME_DIR: "/run/user/{{ ansible_facts['getent_passwd'][openclaw_user][1] }}"
+  register: dashboard_result
+  retries: 5
+  delay: 5
+  until: dashboard_result.rc == 0
+
+- name: Show pairing result
+  debug:
+    msg: "{{ dashboard_result.stdout_lines | default([]) }}"
+
 - name: List All Podman Containers
   command: podman ps -a
   become: true
@@ -294,3 +320,13 @@
   
 - name: Ensure Podman Containers persist on reboot
   command: "loginctl enable-linger {{ openclaw_user }}"
+
+- name: Configure Tailscale Serve for OpenClaw Gateway
+  command: tailscale serve --bg 18789
+  register: tailscale_serve_result
+  changed_when: "'Serve started' in tailscale_serve_result.stderr or 'Serve started' in tailscale_serve_result.stdout"
+  failed_when: tailscale_serve_result.rc != 0 and 'already serving' not in (tailscale_serve_result.stderr | default('') + tailscale_serve_result.stdout | default(''))
+
+- name: Show Tailscale Serve Status
+  debug:
+    msg: "{{ tailscale_serve_result.stdout_lines | default([]) + tailscale_serve_result.stderr_lines | default([]) }}"
