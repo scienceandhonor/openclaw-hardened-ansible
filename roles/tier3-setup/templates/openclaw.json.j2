@@ -37,12 +37,12 @@
     "providers": {
       "anthropic": {
         "baseUrl": "http://litellm:4000",
-        "apiKey": "${ANTHROPIC_API_KEY}",
+        "apiKey": "{{ litellm_key }}",
         "api": "anthropic-messages",
         "models": [
           {
-            "id": "claude-opus-4-6",
-            "name": "Claude Opus 4.6",
+            "id": "claude-sonnet-4-5",
+            "name": "Claude Sonnet 4.5",
             "reasoning": false,
             "input": ["text", "image"],
             "cost": { "input": 0, "output": 0, "cacheRead": 0, "cacheWrite": 0 },
@@ -61,6 +61,13 @@
   },
   "agents": {
     "defaults": {
+      "model": {
+        "primary": "anthropic/claude-sonnet-4-5",
+        "fallbacks": []
+      },
+      "models": {
+        "anthropic/claude-sonnet-4-5": {}
+      },
       "heartbeat": { "every": "5m" }
     },
     "list": [
