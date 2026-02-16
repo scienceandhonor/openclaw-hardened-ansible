@@ -23,6 +23,11 @@ services:
     command: ["--config", "/app/config.yaml", "--port", "4000"]
     security_opt:
       - no-new-privileges:true
+    read_only: true
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=100m
+    mem_limit: 512m
+    cpus: 1.0
 
   squid:
     image: docker.io/ubuntu/squid:latest
