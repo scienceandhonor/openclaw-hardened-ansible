@@ -8,6 +8,7 @@ services:
     env_file: .env
     environment:
       - LITELLM_LOG=INFO
+      - LITELLM_LOG_PATH=/tmp/litellm.log
       - HTTP_PROXY=http://squid:3128
       - HTTPS_PROXY=http://squid:3128
       - NO_PROXY=localhost,127.0.0.1,ollama,172.16.0.0/12,10.0.0.0/8,192.168.0.0/16
@@ -26,7 +27,8 @@ services:
     read_only: true
     tmpfs:
       - /tmp:rw,noexec,nosuid,size=100m
-    mem_limit: 512m
+      - /root:rw,noexec,nosuid,size=50m
+    mem_limit: 1024m
     cpus: 1.0
 
   squid:
