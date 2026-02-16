@@ -109,8 +109,8 @@ if [ "$INTERACTIVE" = true ]; then
     if [ -z "$LLM_URL" ]; then
         if [ "$LLM_PROVIDER" == "ollama" ]; then
             echo ""
-            read -p "Enter Ollama Base URL [http://10.0.110.1:11434]: " input_url
-            LLM_URL="${input_url:-http://10.0.110.1:11434}"
+            read -p "Enter Ollama Base URL [http://host.containers.internal:11434]: " input_url
+            LLM_URL="${input_url:-http://host.containers.internal:11434}"
         elif [ "$LLM_PROVIDER" == "openai_compatible" ]; then
              echo ""
              read -p "Enter API Base URL: " LLM_URL
@@ -139,7 +139,7 @@ fi
 if [ -z "$SSH_USER" ]; then SSH_USER="root"; fi # Default fallback
 if [ -z "$LLM_PROVIDER" ]; then LLM_PROVIDER="ollama"; fi
 if [ -z "$LLM_MODEL" ] && [ "$LLM_PROVIDER" == "ollama" ]; then LLM_MODEL="llama3"; fi
-if [ -z "$LLM_URL" ] && [ "$LLM_PROVIDER" == "ollama" ]; then LLM_URL="http://10.0.110.1:11434"; fi
+if [ -z "$LLM_URL" ] && [ "$LLM_PROVIDER" == "ollama" ]; then LLM_URL="http://host.containers.internal:11434"; fi
 if [ -z "$LLM_KEY" ]; then LLM_KEY="sk-placeholder"; fi
 
 

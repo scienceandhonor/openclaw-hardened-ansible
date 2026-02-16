@@ -148,10 +148,10 @@
     deploy_public_key: "{{ hostvars['localhost']['openclaw_public_key'] }}"
 
     # LLM Configuration (Passed from deploy.sh)
-    llm_provider: "{{ llm_provider | default('ollama') }}"
-    llm_model: "{{ llm_model | default('llama3') }}"
-    llm_url: "{{ llm_url | default('http://10.0.110.1:11434') }}"
-    llm_key: "{{ llm_key | default('ollama') }}"
+    llm_provider: "{{ llm_provider | default('ollama', true) }}"
+    llm_model: "{{ llm_model | default('llama3', true) }}"
+    llm_url: "{{ llm_url | default('http://host.containers.internal:11434', true) }}"
+    llm_key: "{{ llm_key | default('ollama', true) }}"
 
   roles:
     - tier3-setup
