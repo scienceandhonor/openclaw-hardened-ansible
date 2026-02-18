@@ -1,0 +1,258 @@
+---
+# OpenClaw Tier 2 — Direct Host Install
+# No containers. OpenClaw runs as a systemd service under the openclaw user.
+
+# ── Phase 1: Node.js 22 ─────────────────────────────────────────────────────
+
+- name: Add NodeSource APT repository (Node.js 22)
+  shell: |
+    curl -fsSL --connect-timeout 30 --max-time 120 https://deb.nodesource.com/setup_22.x | bash -
+  args:
+    creates: /etc/apt/sources.list.d/nodesource.list
+
+- name: Install Node.js 22
+  apt:
+    name: nodejs
+    state: present
+    update_cache: true
+
+- name: Verify Node.js version
+  command: node --version
+  register: node_version
+  changed_when: false
+
+- name: Fail if Node.js version is below 22
+  fail:
+    msg: "Node.js {{ node_version.stdout }} is too old — 22.12.0+ required (CVE-2026-21636)"
+  when: (node_version.stdout | regex_replace('^v', '') | split('.') | first | int) < 22
+
+# ── Phase 2: Install OpenClaw ────────────────────────────────────────────────
+
+- name: Install OpenClaw globally (as root → /usr/bin/openclaw)
+  command: npm install -g openclaw@latest
+  register: npm_install_result
+  changed_when: "'added' in npm_install_result.stdout or 'updated' in npm_install_result.stdout"
+
+- name: Find openclaw binary path
+  command: which openclaw
+  register: openclaw_bin
+  changed_when: false
+
+- name: Show openclaw binary path
+  debug:
+    msg: "openclaw installed at: {{ openclaw_bin.stdout }}"
+
+# ── Phase 3: Directory Structure ─────────────────────────────────────────────
+
+- name: Create openclaw config and workspace directories
+  file:
+    path: "{{ item.path }}"
+    state: directory
+    owner: "{{ openclaw_user }}"
+    group: "{{ openclaw_user }}"
+    mode: "{{ item.mode }}"
+  loop:
+    - { path: "{{ openclaw_home }}/.openclaw",                          mode: '0700' }
+    - { path: "{{ openclaw_home }}/.openclaw/credentials",              mode: '0700' }
+    - { path: "{{ openclaw_home }}/.openclaw/agents/main/sessions",     mode: '0700' }
+    - { path: "{{ openclaw_home }}/workspace",                          mode: '0755' }
+    - { path: "{{ openclaw_home }}/clawd",                              mode: '0700' }
+
+# ── Phase 4: Gateway Token ────────────────────────────────────────────────────
+
+- name: Check if gateway token already exists
+  stat:
+    path: "{{ openclaw_home }}/.openclaw/gateway.token"
+  register: token_file
+
+- name: Read existing gateway token
+  slurp:
+    src: "{{ openclaw_home }}/.openclaw/gateway.token"
+  register: existing_token_content
+  when: token_file.stat.exists
+
+- name: Generate gateway token (first deploy)
+  command: openssl rand -hex 24
+  register: gateway_token_gen
+  when: not token_file.stat.exists
+
+- name: Set gateway token fact
+  set_fact:
+    gateway_token: "{{ (existing_token_content.content | b64decode | trim) if token_file.stat.exists else gateway_token_gen.stdout | trim }}"
+
+- name: Persist gateway token
+  copy:
+    content: "{{ gateway_token }}"
+    dest: "{{ openclaw_home }}/.openclaw/gateway.token"
+    owner: "{{ openclaw_user }}"
+    group: "{{ openclaw_user }}"
+    mode: '0600'
+
+# ── Phase 5: Deploy Hardened Config Files ────────────────────────────────────
+
+- name: Deploy openclaw.json (gateway + provider + DM policy)
+  template:
+    src: openclaw.json.j2
+    dest: "{{ openclaw_home }}/.openclaw/openclaw.json"
+    owner: "{{ openclaw_user }}"
+    group: "{{ openclaw_user }}"
+    mode: '0600'
+  notify: Restart OpenClaw
+
+- name: Deploy tools.yaml (shell + filesystem allowlist)
+  template:
+    src: tools.yaml.j2
+    dest: "{{ openclaw_home }}/.openclaw/tools.yaml"
+    owner: "{{ openclaw_user }}"
+    group: "{{ openclaw_user }}"
+    mode: '0600'
+
+- name: Deploy mcp.json (memory server only)
+  template:
+    src: mcp.json.j2
+    dest: "{{ openclaw_home }}/.openclaw/mcp.json"
+    owner: "{{ openclaw_user }}"
+    group: "{{ openclaw_user }}"
+    mode: '0600'
+
+- name: Deploy exec-approvals.json (binary allowlist)
+  template:
+    src: exec-approvals.json.j2
+    dest: "{{ openclaw_home }}/.openclaw/exec-approvals.json"
+    owner: "{{ openclaw_user }}"
+    group: "{{ openclaw_user }}"
+    mode: '0600'
+
+# ── Phase 5: Systemd Service ──────────────────────────────────────────────────
+# We write the unit file directly rather than using `openclaw onboard --install-daemon`
+# so the playbook stays idempotent and the service definition is version-controlled.
+
+- name: Create openclaw systemd service
+  copy:
+    dest: /etc/systemd/system/openclaw.service
+    owner: root
+    group: root
+    mode: '0644'
+    content: |
+      [Unit]
+      Description=OpenClaw Agent Gateway
+      Documentation=https://openclaw.io
+      After=network-online.target
+      Wants=network-online.target
+
+      [Service]
+      Type=simple
+      User={{ openclaw_user }}
+      Group={{ openclaw_user }}
+      WorkingDirectory={{ openclaw_home }}
+      Environment=HOME={{ openclaw_home }}
+      Environment=OPENCLAW_GATEWAY_TOKEN={{ gateway_token }}
+      ExecStart={{ openclaw_bin.stdout }} gateway run
+      Restart=on-failure
+      RestartSec=10
+      StandardOutput=journal
+      StandardError=journal
+
+      [Install]
+      WantedBy=multi-user.target
+
+- name: Reload systemd and enable openclaw service
+  systemd:
+    name: openclaw
+    daemon_reload: true
+    enabled: true
+    state: started
+
+# ── Phase 6: Doctor Fix ──────────────────────────────────────────────────────
+# Runs openclaw's self-repair after first start to resolve any init issues.
+
+- name: Run openclaw doctor fix
+  command: "{{ openclaw_bin.stdout }} doctor --fix --yes --non-interactive"
+  become: true
+  become_user: "{{ openclaw_user }}"
+  environment:
+    HOME: "{{ openclaw_home }}"
+    OPENCLAW_GATEWAY_TOKEN: "{{ gateway_token }}"
+  register: doctor_result
+  ignore_errors: true
+  changed_when: false
+
+- name: Show doctor output
+  debug:
+    msg: "{{ doctor_result.stdout_lines | default([]) + doctor_result.stderr_lines | default([]) }}"
+
+# ── Phase 7: Wait for Gateway ────────────────────────────────────────────────
+
+- name: Wait for OpenClaw gateway to be ready on localhost
+  shell: curl -sf http://127.0.0.1:18789 > /dev/null
+  register: gateway_ready
+  retries: 20
+  delay: 3
+  until: gateway_ready.rc == 0
+  become: true
+  become_user: "{{ openclaw_user }}"
+  environment:
+    HOME: "{{ openclaw_home }}"
+
+# ── Phase 8: Tailscale Serve (HTTPS via Tailscale) ───────────────────────────
+# Exposes the gateway at https://<hostname>.ts.net without opening any public port.
+# Tailscale Serve manages TLS termination and certificate provisioning.
+
+- name: Configure Tailscale Serve for OpenClaw gateway
+  command: tailscale serve --bg 18789
+  register: tailscale_serve_result
+  changed_when: "'Serve started' in tailscale_serve_result.stderr or 'Serve started' in tailscale_serve_result.stdout"
+  failed_when: >
+    tailscale_serve_result.rc != 0 and
+    'already serving' not in (tailscale_serve_result.stderr | default('') + tailscale_serve_result.stdout | default(''))
+
+- name: Show Tailscale Serve status
+  debug:
+    msg: "{{ tailscale_serve_result.stdout_lines | default([]) + tailscale_serve_result.stderr_lines | default([]) }}"
+
+# ── Phase 9: Security Monitoring ─────────────────────────────────────────────
+
+- name: Set OPENCLAW_GATEWAY_TOKEN in openclaw user .bashrc
+  lineinfile:
+    path: "{{ openclaw_home }}/.bashrc"
+    regexp: '^export OPENCLAW_GATEWAY_TOKEN='
+    line: "export OPENCLAW_GATEWAY_TOKEN={{ gateway_token }}"
+    create: true
+    owner: "{{ openclaw_user }}"
+    group: "{{ openclaw_user }}"
+    mode: '0600'
+
+- name: Deploy security monitoring script
+  template:
+    src: monitor-openclaw.sh.j2
+    dest: "{{ openclaw_home }}/check-openclaw-security.sh"
+    owner: "{{ openclaw_user }}"
+    group: "{{ openclaw_user }}"
+    mode: '0700'
+
+- name: Schedule weekly security monitoring (every Sunday 09:00)
+  cron:
+    name: "OpenClaw security audit"
+    minute: "0"
+    hour: "9"
+    weekday: "0"
+    job: "{{ openclaw_home }}/check-openclaw-security.sh >> {{ openclaw_home }}/security-audit-cron.log 2>&1"
+    user: "{{ openclaw_user }}"
+    state: present
+
+# ── Phase 10: Security Audit ──────────────────────────────────────────────────
+
+- name: Run initial security audit
+  command: "{{ openclaw_bin.stdout }} security audit --deep"
+  become: true
+  become_user: "{{ openclaw_user }}"
+  environment:
+    HOME: "{{ openclaw_home }}"
+    OPENCLAW_GATEWAY_TOKEN: "{{ gateway_token }}"
+  register: audit_result
+  ignore_errors: true
+  changed_when: false
+
+- name: Show security audit results
+  debug:
+    msg: "{{ audit_result.stdout_lines | default([]) }}"
