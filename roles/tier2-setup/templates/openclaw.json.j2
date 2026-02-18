@@ -1,0 +1,100 @@
+{
+  "gateway": {
+    "mode": "local",
+    "bind": "loopback",
+    "port": 18789,
+    "trustedProxies": [
+      "127.0.0.1",
+      "::1",
+      "100.64.0.0/10"
+    ],
+    "auth": {
+      "mode": "token",
+      "token": "{{ gateway_token }}"
+    },
+    "controlUi": {
+      "dangerouslyDisableDeviceAuth": false,
+      "allowedOrigins": [
+        "https://{{ target_hostname }}.ts.net",
+        "http://localhost:18789",
+        "http://127.0.0.1:18789",
+        "https://localhost:18789",
+        "https://127.0.0.1:18789"
+      ]
+    }
+  },
+  "discovery": {
+    "mdns": { "mode": "off" }
+  },
+  "models": {
+    "mode": "merge",
+    "providers": {
+{% if llm_provider == 'anthropic' %}
+      "anthropic": {
+        "apiKey": "{{ llm_key }}",
+        "api": "anthropic-messages",
+        "baseUrl": "https://api.anthropic.com",
+        "models": [
+          {
+            "id": "{{ llm_model }}",
+            "name": "{{ llm_model }}",
+            "reasoning": false,
+            "input": ["text", "image"],
+            "contextWindow": 200000,
+            "maxTokens": 8096
+          }
+        ]
+      }
+{% elif llm_provider == 'openai' %}
+      "openai": {
+        "apiKey": "{{ llm_key }}",
+        "baseUrl": "https://api.openai.com/v1",
+        "models": [
+          {
+            "id": "{{ llm_model }}",
+            "name": "{{ llm_model }}",
+            "reasoning": false,
+            "input": ["text", "image"],
+            "contextWindow": 128000,
+            "maxTokens": 4096
+          }
+        ]
+      }
+{% elif llm_provider == 'openai_compatible' %}
+      "openai": {
+        "apiKey": "{{ llm_key }}",
+        "baseUrl": "{{ llm_url }}",
+        "models": [
+          {
+            "id": "{{ llm_model }}",
+            "name": "{{ llm_model }}",
+            "reasoning": false,
+            "input": ["text"],
+            "contextWindow": 128000,
+            "maxTokens": 4096
+          }
+        ]
+      }
+{% elif llm_provider == 'ollama' %}
+      "ollama": {
+        "baseUrl": "{{ llm_url }}"
+      }
+{% endif %}
+    }
+  },
+  "channels": {
+    "telegram": { "dmPolicy": "pairing" },
+    "whatsapp": { "dmPolicy": "pairing" },
+    "discord": { "dmPolicy": "pairing" },
+    "signal": { "dmPolicy": "pairing" }
+  },
+  "agents": {
+    "defaults": {
+      "model": {
+        "primary": "{{ llm_provider }}/{{ llm_model }}",
+        "fallbacks": []
+      },
+      "heartbeat": { "every": "5m" }
+    }
+  }
+}
