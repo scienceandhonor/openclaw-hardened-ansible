@@ -62,10 +62,13 @@ Both playbooks share the same 3-play structure: (1) check for existing installat
 OpenClaw runs as a plain systemd service under the `openclaw` user. No containers, no Podman, no LiteLLM. Provider credentials are configured directly in `openclaw.json`. **Debian/Ubuntu only.**
 
 #### Task Flow (roles/tier2-setup/tasks/)
-- `main.yml` — OS detection (Debian/Ubuntu only), includes other task files
+- `main.yml` — OS detection (Debian/Ubuntu only), includes other task files in order: `debian-system.yml` → `install.yml` → `security.yml`
 - `debian-system.yml` — Package install, user creation, Tailscale auth
-- `security.yml` — UFW firewall rules, Fail2Ban, SSH hardening
-- `install.yml` — Node.js 22 via NodeSource (with version guard), openclaw npm install, directory structure, systemd service, health check, Tailscale Serve HTTPS, weekly monitoring cron
+- `install.yml` — Node.js 22 via NodeSource (with version guard), openclaw npm install, directory structure, gateway token generation, systemd service, doctor fix, health check, **CLI device pairing bootstrap**, Tailscale Serve HTTPS, weekly monitoring cron
+- `security.yml` — UFW firewall rules, Fail2Ban, SSH hardening. Runs **last** so a failed install does not lock out root SSH.
+
+#### Task Order Note
+`security.yml` intentionally runs after `install.yml`. Running it earlier would disable root SSH (`PermitRootLogin prohibit-password`) before openclaw is installed, making the playbook impossible to re-run on failure without console access.
 
 ### Tier 3 Architecture (`playbook.yml` → `roles/tier3-setup/`)
 Full container stack with rootless Podman. **Arch Linux or Debian/Ubuntu.**
@@ -86,7 +89,7 @@ Two Podman networks: `openclaw-internal` (agent ↔ LiteLLM ↔ Squid) and `open
 
 ### Secret Management
 Tier 3: Gateway token and LiteLLM master key are generated on first deploy and persisted in the remote `.env` file. Subsequent runs detect and reuse existing secrets.
-Tier 2: No generated secrets — provider API key is written directly to `openclaw.json` by the template.
+Tier 2: Gateway token generated with `openssl rand -hex 24` (must be 48-char hex — openclaw rejects base64 tokens at connection time). Persisted to `~/.openclaw/gateway.token`. Re-runs reuse the existing token. Provider API key written directly to `openclaw.json` by the template.
 
 ## Development Conventions
 
@@ -95,6 +98,35 @@ Tier 2: No generated secrets — provider API key is written directly to `opencl
 - **LiteLLM model mapping (Tier 3):** Model IDs in `litellm-config.yaml.j2` enable spoofing — a model named `claude-sonnet-4-5` can be backed by any provider.
 - **Tier 2 provider config:** Provider/model/URL/key are injected directly into `openclaw.json.j2` via Jinja2 conditionals — no LiteLLM intermediary.
 - **Commit style:** Use conventional commits with scope, e.g. `fix(litellm):`, `feat(tier2):`, `security(ssh):`.
+
+## openclaw.json Schema Notes (Tier 2)
+
+Hard-won constraints from live deployment — openclaw doctor/validator enforces these:
+
+- **`gateway.bind`** — Valid values are keywords (`"loopback"`, `"lan"`, etc.), not IP strings. `"lo"` and `"127.0.0.1"` are rejected with schema errors. Use `"loopback"` for tier 2.
+- **`gateway.auth.token`** — Must be a 48-char hex string (`openssl rand -hex 24`). Base64 tokens are silently rejected at WebSocket connection time with code 4008.
+- **`gateway.remote.token` / `gateway.remote.url`** — Client-side config for the CLI to connect to a remote gateway. Set these to allow CLI commands to authenticate without device pairing prompts.
+- **`models.providers.<provider>.baseUrl`** — Required field for anthropic and openai providers. Omitting it causes schema validation failure on startup.
+- **`models.providers.<provider>.models`** — Required array for anthropic and openai providers. Must include at least the configured model.
+- **`channels.discord.dmPolicy`** — Correct field name. `channels.discord.dm.policy` is the old format; openclaw doctor migrates it automatically but the template should use the new form to avoid constant migration noise.
+- **Semantic memory** — openclaw auto-detects embedding providers (OpenAI, Gemini, Voyage, or local GGUF model) and falls back to BM25-only if none are available. Do not explicitly disable it.
+
+## openclaw Device Pairing (Tier 2 Headless Bootstrap)
+
+openclaw has two separate auth layers that are easy to conflate:
+
+1. **Gateway auth token** (`gateway.auth.token`) — Authenticates the browser dashboard WebSocket (controlUI). Set `gateway.remote.token` client-side for the CLI to use this token.
+2. **Device pairing** — Separate per-device asymmetric key challenge. Required for CLI connections regardless of gateway token. `dangerouslyDisableDeviceAuth` only bypasses this for the controlUI, not the CLI.
+
+**`OPENCLAW_GATEWAY_TOKEN` env var does not bypass device pairing for the CLI.** It is only for the agent API, not the control plane WebSocket.
+
+**Headless bootstrap flow** (automated in `install.yml` Phase 7b):
+1. Run any CLI command — it fails but generates `~/.openclaw/identity/device.json` (Ed25519 key pair) and writes a pending entry to `~/.openclaw/devices/pending.json`
+2. Move the CLI's pending entry into `~/.openclaw/devices/paired.json` (keyed by `deviceId`, drop `requestId`, add `pairedAt`)
+3. Restart the gateway — it reads `paired.json` on startup and trusts the CLI's public key
+4. CLI connects using private key challenge from `identity/device.json`
+
+Browser pairing is done manually post-deploy: open the dashboard URL from `openclaw dashboard --no-open` via SSH tunnel, the browser submits a pending request, approve with `openclaw nodes approve <requestId>` from the now-working CLI.
 
 ## Key Files
 

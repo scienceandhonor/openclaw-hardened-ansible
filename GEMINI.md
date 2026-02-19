@@ -3,18 +3,28 @@
 This file provides instructional context for Gemini CLI interactions within the `openclaw-hardened-ansible` project.
 
 ## Project Overview
-This project is an automated **Ansible-based deployment** system for a **hardened OpenClaw** instance. It transforms a standard OpenClaw setup into a "Tier 3+" secure environment using a defense-in-depth architecture.
+This project is an automated **Ansible-based deployment** system for **hardened OpenClaw** instances. It supports two levels of security hardening:
+
+- **Tier 2 (Secure Host):** Direct systemd-based deployment on a hardened Debian/Ubuntu host with Tailscale Serve (HTTPS) and auto-paired CLI.
+- **Tier 3+ (Defense-in-Depth):** Containerized deployment using Podman (Rootless), LiteLLM credential brokering, and Squid egress filtering.
 
 ### Key Technologies
-- **Ansible:** Orchestrates the system setup and container deployment.
-- **Podman (Rootless):** Runs containers as a non-privileged user for enhanced security.
-- **LiteLLM:** Acts as a credential broker and model spoofing layer.
-- **Squid Proxy:** Filters all outgoing container traffic using a domain allowlist.
-- **UFW:** Manages host-level firewall rules.
-- **Tailscale:** Provides secure remote access via Tailscale Serve and Tailscale SSH.
+- **Ansible:** Orchestrates system setup, hardening, and deployment.
+- **Tailscale:** Provides secure remote access via Tailscale Serve (HTTPS termination) and Tailscale SSH.
+- **Node.js 22:** The required runtime for OpenClaw (CVE-2026-21636 compliance).
+- **Podman (Tier 3):** Runs containers as a non-privileged user for enhanced isolation.
+- **LiteLLM (Tier 3):** Acts as a credential broker and model spoofing layer.
+- **Squid Proxy (Tier 3):** Filters all outgoing container traffic using a domain allowlist.
+- **UFW & Fail2Ban:** Manages host-level firewall and brute-force protection.
 
 ### Architecture
-1.  **OpenClaw Agent:** The core AI agent service.
+#### Tier 2 (Direct)
+1.  **OpenClaw Gateway:** Runs as a systemd service under the `openclaw` user.
+2.  **Tailscale Serve:** Maps `https://<hostname>.ts.net` to local port 18789.
+3.  **Auto-Pairing:** Deployment automatically pairs the CLI device to avoid headless UI deadlocks.
+
+#### Tier 3 (Containerized)
+1.  **OpenClaw Agent:** Core AI agent service in a rootless container.
 2.  **LiteLLM Proxy:** Routes model requests to external providers (Anthropic, OpenAI, Ollama).
 3.  **Squid Proxy Sidecar:** All egress traffic from the agent goes through this proxy.
 4.  **Host OS Hardening:** Kernel limits (sysctl) and user-level isolation.
@@ -22,41 +32,44 @@ This project is an automated **Ansible-based deployment** system for a **hardene
 ## Building and Running
 
 ### Deployment
-The primary entry point is the `deploy.sh` script, which wraps the Ansible playbook execution.
-
-- **Interactive Deploy:** `./deploy.sh`
-- **CLI-driven Deploy:**
+- **Tier 2 (Direct):**
+  ```bash
+  ./deploy-tier2.sh -t <TARGET_IP> -p ollama -m llama3
+  ```
+- **Tier 3 (Containerized):**
   ```bash
   ./deploy.sh -t <TARGET_IP> -p anthropic -m claude-3-5-sonnet-20240620 -k <API_KEY>
   ```
 
 ### Maintenance Commands
-- **Update Egress Allowlist:** Edit `roles/tier3-setup/templates/allowlist.txt.j2` and run `./update-allowlist.sh`.
-- **Check Container Status:** Run `podman ps` on the VPS as the `openclaw` user.
-- **OpenClaw Doctor:** `podman exec openclaw-agent openclaw doctor`
+- **Check Status (Tier 2):** `systemctl status openclaw`
+- **Check Status (Tier 3):** Run `podman ps` on the VPS as the `openclaw` user.
+- **Update Egress Allowlist (Tier 3):** Edit `roles/tier3-setup/templates/allowlist.txt.j2` and run `./update-allowlist.sh`.
+- **OpenClaw Doctor:**
+  - Tier 2: `openclaw doctor`
+  - Tier 3: `podman exec openclaw-agent openclaw doctor`
 - **Manual Device Approval:**
-  ```bash
-  podman exec openclaw-agent openclaw devices approve <REQUEST_ID>
-  ```
+  - Tier 2: `openclaw devices approve <REQUEST_ID>`
+  - Tier 3: `podman exec openclaw-agent openclaw devices approve <REQUEST_ID>`
 
 ## Development Conventions
 
 ### Ansible Structure
-- **Role-based:** All logic is contained within the `tier3-setup` role.
-- **OS Support:** Tasks are split into `arch-system.yml` and `debian-system.yml`.
-- **Hardening:** Security-specific tasks are in `security.yml`.
-- **Templates:** All configurations (`docker-compose`, `openclaw.json`, `litellm-config`) are Jinja2 templates located in `roles/tier3-setup/templates/`.
+- **Role-based:** Logic is split between `tier2-setup` (direct host) and `tier3-setup` (containerized).
+- **OS Support:**
+  - Tier 2: Supports Debian/Ubuntu only.
+  - Tier 3: Supports Arch Linux and Debian/Ubuntu.
+- **Hardening Logic:** Contained in `security.yml` within each role.
+- **Templates:** Configs (`openclaw.json`, `tools.yaml`, etc.) are Jinja2 templates.
 
 ### Coding Style & Patterns
-- **Rootless Focus:** Always use `become: true` and `become_user: "{{ openclaw_user }}"` for Podman-related tasks.
-- **Environment Variables:** Critical secrets are passed via `.env` files generated from Ansible variables.
-- **Template Indentation:** For YAML templates (`litellm-config.yaml.j2`), keep Jinja2 control tags (`{% if %}`) at the start of the line to prevent indentation errors in the rendered output.
-- **LiteLLM Mapping:** Model IDs are mapped in `litellm-config.yaml.j2` to enable spoofing (e.g., calling a model `claude-sonnet-4-5` even if it's backed by a different provider).
+- **Gateway Tokens:** MUST be 48-character hex strings (24 bytes). Base64 is rejected by OpenClaw with code 4008.
+- **SSH Hardening:** Use `PermitRootLogin prohibit-password` instead of `no` to maintain idempotent Ansible access via keys while blocking passwords.
+- **Headless Bootstrap:** Tier 2 uses a Python-based filesystem manipulation to approve the CLI device pairing request in `pending.json` -> `paired.json`.
+- **LiteLLM Mapping (Tier 3):** Model IDs are mapped in `litellm-config.yaml.j2` to enable spoofing.
 
 ## Important Files
-- `playbook.yml`: The main playbook defining variables and roles.
-- `deploy.sh`: The interactive deployment wrapper.
-- `roles/tier3-setup/templates/openclaw.json.j2`: The primary configuration for the OpenClaw agent.
-- `roles/tier3-setup/templates/litellm-config.yaml.j2`: Defines how models are routed and proxied.
-- `roles/tier3-setup/templates/docker-compose.yml.j2`: The container stack definition.
-- `roles/tier3-setup/tasks/docker-deploy.yml`: The logic for deploying the containerized stack.
+- `playbook-tier2.yml` / `playbook.yml`: Main entry points for Tier 2 and Tier 3.
+- `roles/tier2-setup/tasks/install.yml`: Logic for direct host installation and auto-pairing.
+- `roles/tier3-setup/tasks/docker-deploy.yml`: Logic for deploying the containerized stack.
+- `roles/shared/templates/openclaw.json.j2`: Primary configuration (note: currently duplicated or specialized per tier).
