@@ -194,6 +194,115 @@
   environment:
     HOME: "{{ openclaw_home }}"
 
+- name: Verify gateway is bound to localhost only
+  shell: ss -tlnp | grep 18789
+  register: gateway_bind_check
+  changed_when: false
+  failed_when: "'0.0.0.0:18789' in gateway_bind_check.stdout"
+
+# ── Phase 7b: Bootstrap CLI Device Pairing ───────────────────────────────────
+# On first deploy no devices are paired. We trigger the CLI to generate its
+# identity and submit a pending pairing request, then approve it directly via
+# the filesystem. This avoids the UI pairing deadlock on headless servers.
+
+- name: Check if CLI device is already paired
+  shell: |
+    python3 -c "
+    import json, os, sys
+    try:
+        with open(os.environ['HOME'] + '/.openclaw/devices/paired.json') as f:
+            paired = json.load(f)
+        if any(v.get('clientId') == 'cli' for v in paired.values()):
+            sys.exit(0)
+    except: pass
+    sys.exit(1)
+    "
+  become: true
+  become_user: "{{ openclaw_user }}"
+  environment:
+    HOME: "{{ openclaw_home }}"
+  register: cli_already_paired
+  changed_when: false
+  failed_when: false
+
+- name: Trigger CLI identity generation and pairing request
+  command: "{{ openclaw_bin.stdout }} devices list"
+  become: true
+  become_user: "{{ openclaw_user }}"
+  environment:
+    HOME: "{{ openclaw_home }}"
+  ignore_errors: true
+  changed_when: false
+  when: cli_already_paired.rc != 0
+
+- name: Wait for CLI pairing request to appear in pending.json
+  wait_for:
+    path: "{{ openclaw_home }}/.openclaw/devices/pending.json"
+    search_regex: '"clientId": "cli"'
+    timeout: 15
+  when: cli_already_paired.rc != 0
+
+- name: Approve CLI device pairing via filesystem
+  shell: |
+    python3 << 'PYEOF'
+    import json, time, os, sys
+
+    home = os.environ['HOME']
+    pending_path = home + '/.openclaw/devices/pending.json'
+    paired_path  = home + '/.openclaw/devices/paired.json'
+
+    with open(pending_path) as f:
+        pending = json.load(f)
+
+    cli_entry = next((v for v in pending.values() if v.get('clientId') == 'cli'), None)
+    if not cli_entry:
+        print("No CLI pending entry found", file=sys.stderr)
+        sys.exit(1)
+
+    try:
+        with open(paired_path) as f:
+            paired = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        paired = {}
+
+    device_id   = cli_entry['deviceId']
+    paired_entry = {k: v for k, v in cli_entry.items() if k != 'requestId'}
+    paired_entry['pairedAt'] = int(time.time() * 1000)
+    paired[device_id] = paired_entry
+
+    with open(paired_path, 'w') as f:
+        json.dump(paired, f, indent=2)
+
+    del pending[cli_entry['requestId']]
+    with open(pending_path, 'w') as f:
+        json.dump(pending, f, indent=2)
+
+    print("CLI device paired: " + device_id[:16] + "...")
+    PYEOF
+  become: true
+  become_user: "{{ openclaw_user }}"
+  environment:
+    HOME: "{{ openclaw_home }}"
+  when: cli_already_paired.rc != 0
+
+- name: Restart gateway to apply CLI pairing
+  systemd:
+    name: openclaw
+    state: restarted
+  when: cli_already_paired.rc != 0
+
+- name: Wait for gateway to be ready after pairing restart
+  shell: curl -sf http://127.0.0.1:18789 > /dev/null
+  register: gateway_ready_post_pair
+  retries: 20
+  delay: 3
+  until: gateway_ready_post_pair.rc == 0
+  become: true
+  become_user: "{{ openclaw_user }}"
+  environment:
+    HOME: "{{ openclaw_home }}"
+  when: cli_already_paired.rc != 0
+
 # ── Phase 8: Tailscale Serve (HTTPS via Tailscale) ───────────────────────────
 # Exposes the gateway at https://<hostname>.ts.net without opening any public port.
 # Tailscale Serve manages TLS termination and certificate provisioning.
