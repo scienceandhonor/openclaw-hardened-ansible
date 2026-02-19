@@ -54,5 +54,21 @@ else
   echo "OK: Port 18789 not in UFW allow rules" >> "$REPORT"
 fi
 
+# 8. Tailscale CGNAT range present in config
+echo "[*] Checking Tailscale proxy range..." >> "$REPORT"
+if grep -q '"100.64.0.0/10"' "$CONFIG" 2>/dev/null; then
+  echo "OK: Tailscale CGNAT range present in trustedProxies" >> "$REPORT"
+else
+  echo "WARNING: 100.64.0.0/10 missing from trustedProxies — Tailscale access may be broken" >> "$REPORT"
+fi
+
+# 9. mDNS must be off
+echo "[*] Checking mDNS status..." >> "$REPORT"
+if python3 -c "import json,sys; d=json.load(open('$CONFIG')); sys.exit(0 if d.get('discovery',{}).get('mdns',{}).get('mode')=='off' else 1)" 2>/dev/null; then
+  echo "OK: mDNS is off" >> "$REPORT"
+else
+  echo "WARNING: mDNS may be enabled — verify discovery.mdns.mode is 'off' in openclaw.json" >> "$REPORT"
+fi
+
 echo "=== Audit Complete ===" >> "$REPORT"
 echo "Report saved to: $REPORT"
