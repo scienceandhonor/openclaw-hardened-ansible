@@ -149,7 +149,10 @@
       Environment=OPENCLAW_GATEWAY_TOKEN={{ gateway_token }}
       ExecStart={{ openclaw_bin.stdout }} gateway run
       Restart=on-failure
-      RestartSec=10
+      RestartSec=15
+      StartLimitIntervalSec=120
+      StartLimitBurst=4
+      KillMode=control-group
       StandardOutput=journal
       StandardError=journal
 
@@ -180,6 +183,38 @@
 - name: Show doctor output
   debug:
     msg: "{{ doctor_result.stdout_lines | default([]) + doctor_result.stderr_lines | default([]) }}"
+
+# ── Doctor cleanup: remove user-level service doctor may have installed ────────
+# openclaw doctor --fix registers a user-level openclaw-gateway.service as part
+# of self-repair. This conflicts with our system-level service on port 18789,
+# causing a 20-second restart loop. We explicitly remove it.
+
+- name: Get openclaw user UID
+  command: id -u {{ openclaw_user }}
+  register: openclaw_uid
+  changed_when: false
+
+- name: Stop and disable user-level openclaw-gateway service (if installed by doctor)
+  shell: |
+    systemctl --user stop openclaw-gateway.service 2>/dev/null || true
+    systemctl --user disable openclaw-gateway.service 2>/dev/null || true
+  become: true
+  become_user: "{{ openclaw_user }}"
+  environment:
+    HOME: "{{ openclaw_home }}"
+    XDG_RUNTIME_DIR: "/run/user/{{ openclaw_uid.stdout }}"
+  failed_when: false
+  changed_when: false
+
+- name: Remove user-level openclaw systemd service files installed by doctor
+  file:
+    path: "{{ openclaw_home }}/.config/systemd/user/{{ item }}"
+    state: absent
+  become: true
+  become_user: "{{ openclaw_user }}"
+  loop:
+    - openclaw-gateway.service
+    - openclaw.service
 
 # ── Phase 7: Wait for Gateway ────────────────────────────────────────────────
 
@@ -224,6 +259,14 @@
   register: cli_already_paired
   changed_when: false
   failed_when: false
+
+- name: Remove stale CLI identity so a fresh pending entry is generated
+  file:
+    path: "{{ openclaw_home }}/.openclaw/identity/device.json"
+    state: absent
+  become: true
+  become_user: "{{ openclaw_user }}"
+  when: cli_already_paired.rc != 0
 
 - name: Trigger CLI identity generation and pairing request
   command: "{{ openclaw_bin.stdout }} devices list"

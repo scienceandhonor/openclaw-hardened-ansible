@@ -15,6 +15,8 @@ show_help() {
     echo "  --ssh-key PATH        Path to private key for SSH connection"
     echo "  --ask-pass            Ask for SSH and Sudo passwords"
     echo "  --non-interactive     Fail if missing arguments instead of prompting"
+    echo "  --telegram-userid ID  Telegram user ID (integer) to allow"
+    echo "  --telegram-bottoken T Telegram bot token"
     echo "  -h, --help            Show this help message"
     echo ""
     echo "Deploys OpenClaw Tier 2 (direct host, no containers) to an Ubuntu/Debian VPS."
@@ -31,6 +33,8 @@ LLM_KEY=""
 INTERACTIVE=true
 ASK_PASS=false
 SSH_KEY=""
+TELEGRAM_USERID=""
+TELEGRAM_BOTTOKEN=""
 
 # Parse Arguments
 while [[ "$#" -gt 0 ]]; do
@@ -44,6 +48,8 @@ while [[ "$#" -gt 0 ]]; do
         --ssh-key) SSH_KEY="$2"; shift ;;
         --ask-pass) ASK_PASS=true ;;
         --non-interactive) INTERACTIVE=false ;;
+        --telegram-userid) TELEGRAM_USERID="$2"; shift ;;
+        --telegram-bottoken) TELEGRAM_BOTTOKEN="$2"; shift ;;
         -h|--help) show_help; exit 0 ;;
         *) echo "Unknown parameter: $1"; exit 1 ;;
     esac
@@ -122,6 +128,16 @@ if [ "$INTERACTIVE" = true ]; then
             LLM_KEY="ollama"
         fi
     fi
+
+    if [ -z "$TELEGRAM_USERID" ] && [ -z "$TELEGRAM_BOTTOKEN" ]; then
+        echo ""
+        read -p "Configure Telegram? [y/N]: " tg_choice
+        if [[ "$tg_choice" =~ ^[Yy]$ ]]; then
+            read -p "Telegram User ID (integer): " TELEGRAM_USERID
+            read -s -p "Telegram Bot Token: " TELEGRAM_BOTTOKEN
+            echo ""
+        fi
+    fi
 fi
 
 # --- Validation ---
@@ -137,16 +153,31 @@ if [ -z "$LLM_MODEL" ] && [ "$LLM_PROVIDER" == "ollama" ]; then LLM_MODEL="llama
 if [ -z "$LLM_URL" ] && [ "$LLM_PROVIDER" == "ollama" ]; then LLM_URL="http://localhost:11434"; fi
 if [ -z "$LLM_KEY" ]; then LLM_KEY="sk-placeholder"; fi
 
+# Require both Telegram params or neither
+if [ -n "$TELEGRAM_BOTTOKEN" ] && [ -z "$TELEGRAM_USERID" ]; then
+    echo "Error: --telegram-userid is required when --telegram-bottoken is set."
+    exit 1
+fi
+if [ -n "$TELEGRAM_USERID" ] && [ -z "$TELEGRAM_BOTTOKEN" ]; then
+    echo "Error: --telegram-bottoken is required when --telegram-userid is set."
+    exit 1
+fi
+
 # --- Execution ---
 
 echo ""
-echo "🚀 Deploying Tier 2 Configuration:"
+echo "Deploying Tier 2 Configuration:"
 echo "----------------------------------------"
 echo "Target:    $TARGET_IP"
 echo "User:      $SSH_USER"
 if [ -n "$SSH_KEY" ]; then echo "SSH Key:   $SSH_KEY"; fi
 echo "OS:        Ubuntu/Debian (auto-detect)"
 echo "Provider:  $LLM_PROVIDER / $LLM_MODEL"
+if [ -n "$TELEGRAM_USERID" ]; then
+    echo "Telegram:  userid=$TELEGRAM_USERID token=***"
+else
+    echo "Telegram:  not configured"
+fi
 echo "----------------------------------------"
 
 # Create temporary inventory
@@ -185,9 +216,21 @@ if [ -n "$SSH_KEY" ]; then
     ANSIBLE_ARGS="$ANSIBLE_ARGS --private-key=$SSH_KEY"
 fi
 
+# Build extra-vars as JSON so special characters (e.g. colons in bot tokens) are never misinterpreted
+EXTRA_VARS=$(python3 -c "
+import json, sys
+print(json.dumps({
+    'llm_provider':      sys.argv[1],
+    'llm_model':         sys.argv[2],
+    'llm_url':           sys.argv[3],
+    'llm_key':           sys.argv[4],
+    'telegram_userid':   sys.argv[5],
+    'telegram_bottoken': sys.argv[6],
+}))" "$LLM_PROVIDER" "$LLM_MODEL" "$LLM_URL" "$LLM_KEY" "$TELEGRAM_USERID" "$TELEGRAM_BOTTOKEN")
+
 # Run Playbook
 ansible-playbook -i "$TEMP_INVENTORY" playbook-tier2.yml $ANSIBLE_ARGS \
-    --extra-vars "llm_provider='$LLM_PROVIDER' llm_model='$LLM_MODEL' llm_url='$LLM_URL' llm_key='$LLM_KEY'"
+    --extra-vars "$EXTRA_VARS"
 
 # Cleanup
 rm "$TEMP_INVENTORY"
