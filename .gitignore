@@ -20,6 +20,9 @@ collections/
 # Ansible creates these when a playbook fails
 *.retry
 
+# --- Local Notes ---
+openclaw-hardening-ubuntu-vps.md
+
 # --- Local Configuration/IDEs ---
 .vscode/
 .ansible-lint

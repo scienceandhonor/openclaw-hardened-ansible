@@ -48,6 +48,7 @@
 {% elif llm_provider == 'openai' %}
       "openai": {
         "apiKey": "{{ llm_key }}",
+        "api": "openai-completions",
         "baseUrl": "https://api.openai.com/v1",
         "models": [
           {
@@ -63,6 +64,7 @@
 {% elif llm_provider == 'openai_compatible' %}
       "openai": {
         "apiKey": "{{ llm_key }}",
+        "api": "openai-completions",
         "baseUrl": "{{ llm_url }}",
         "models": [
           {
@@ -83,7 +85,23 @@
     }
   },
   "channels": {
+{% if telegram_bottoken | default('') | length > 0 and telegram_userid | default('') | length > 0 %}
+    "telegram": {
+      "enabled": true,
+      "commands": { "native": true, "nativeSkills": true },
+      "configWrites": false,
+      "dmPolicy": "pairing",
+      "botToken": "{{ telegram_bottoken }}",
+      "allowFrom": [ {{ telegram_userid }} ],
+      "groupPolicy": "allowlist",
+      "dms": { "{{ telegram_userid }}": {} },
+      "streamMode": "partial",
+      "actions": { "reactions": true, "sendMessage": true },
+      "heartbeat": { "showOk": true, "showAlerts": true, "useIndicator": true }
+    },
+{% else %}
     "telegram": { "dmPolicy": "pairing" },
+{% endif %}
     "whatsapp": { "dmPolicy": "pairing" },
     "discord": { "dmPolicy": "pairing" },
     "signal": { "dmPolicy": "pairing" }
@@ -91,7 +109,7 @@
   "agents": {
     "defaults": {
       "model": {
-        "primary": "{{ llm_provider }}/{{ llm_model }}",
+        "primary": "{{ 'openai' if llm_provider == 'openai_compatible' else llm_provider }}/{{ llm_model }}",
         "fallbacks": []
       },
       "heartbeat": { "every": "5m" }
