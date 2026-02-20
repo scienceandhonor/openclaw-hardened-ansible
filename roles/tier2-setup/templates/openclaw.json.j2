@@ -114,5 +114,17 @@
       },
       "heartbeat": { "every": "5m" }
     }
+  }{% if brave_key | default('') | length > 0 %},
+  "tools": {
+    "web": {
+      "search": {
+        "provider": "brave",
+        "apiKey": "{{ brave_key }}"
+      },
+      "fetch": {
+        "enabled": true
+      }
+    }
   }
+{% endif %}
 }

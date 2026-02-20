@@ -17,6 +17,7 @@ show_help() {
     echo "  --non-interactive     Fail if missing arguments instead of prompting"
     echo "  --telegram-userid ID  Telegram user ID (integer) to allow"
     echo "  --telegram-bottoken T Telegram bot token"
+    echo "  --brave-key KEY       Brave Search API key (enables web search tool)"
     echo "  -h, --help            Show this help message"
     echo ""
     echo "Deploys OpenClaw Tier 2 (direct host, no containers) to an Ubuntu/Debian VPS."
@@ -35,6 +36,7 @@ ASK_PASS=false
 SSH_KEY=""
 TELEGRAM_USERID=""
 TELEGRAM_BOTTOKEN=""
+BRAVE_KEY=""
 
 # Parse Arguments
 while [[ "$#" -gt 0 ]]; do
@@ -50,6 +52,7 @@ while [[ "$#" -gt 0 ]]; do
         --non-interactive) INTERACTIVE=false ;;
         --telegram-userid) TELEGRAM_USERID="$2"; shift ;;
         --telegram-bottoken) TELEGRAM_BOTTOKEN="$2"; shift ;;
+        --brave-key) BRAVE_KEY="$2"; shift ;;
         -h|--help) show_help; exit 0 ;;
         *) echo "Unknown parameter: $1"; exit 1 ;;
     esac
@@ -138,6 +141,12 @@ if [ "$INTERACTIVE" = true ]; then
             echo ""
         fi
     fi
+
+    if [ -z "$BRAVE_KEY" ]; then
+        echo ""
+        read -p "Enable Brave Search? Enter API key or leave empty to skip: " input_brave
+        BRAVE_KEY="${input_brave}"
+    fi
 fi
 
 # --- Validation ---
@@ -177,6 +186,11 @@ if [ -n "$TELEGRAM_USERID" ]; then
     echo "Telegram:  userid=$TELEGRAM_USERID token=***"
 else
     echo "Telegram:  not configured"
+fi
+if [ -n "$BRAVE_KEY" ]; then
+    echo "Brave:     enabled (key=***)"
+else
+    echo "Brave:     not configured"
 fi
 echo "----------------------------------------"
 
@@ -226,7 +240,8 @@ print(json.dumps({
     'llm_key':           sys.argv[4],
     'telegram_userid':   sys.argv[5],
     'telegram_bottoken': sys.argv[6],
-}))" "$LLM_PROVIDER" "$LLM_MODEL" "$LLM_URL" "$LLM_KEY" "$TELEGRAM_USERID" "$TELEGRAM_BOTTOKEN")
+    'brave_key':         sys.argv[7],
+}))" "$LLM_PROVIDER" "$LLM_MODEL" "$LLM_URL" "$LLM_KEY" "$TELEGRAM_USERID" "$TELEGRAM_BOTTOKEN" "$BRAVE_KEY")
 
 # Run Playbook
 ansible-playbook -i "$TEMP_INVENTORY" playbook-tier2.yml $ANSIBLE_ARGS \
