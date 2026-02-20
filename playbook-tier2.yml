@@ -124,6 +124,9 @@
     llm_url: "{{ llm_url | default('http://localhost:11434', true) }}"
     llm_key: "{{ llm_key | default('ollama', true) }}"
 
+    # Optional integrations
+    brave_key: "{{ brave_key | default('', true) }}"
+
   roles:
     - tier2-setup
 
