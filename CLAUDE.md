@@ -43,7 +43,20 @@ Automated Ansible deployment for hardened OpenClaw AI agents in two tiers:
 # With Telegram channel
 ./deploy-tier2.sh -t <IP> -p anthropic -m claude-sonnet-4-5 -k <API_KEY> \
   --telegram-userid <INTEGER_USER_ID> --telegram-bottoken <BOT_TOKEN>
+
+# With Last.fm artist sync (hourly cron, builds lastfm-artists.json)
+./deploy-tier2.sh -t <IP> -p anthropic -m claude-sonnet-4-5 -k <API_KEY> \
+  --lastfm-user <LASTFM_USERNAME> --lastfm-key <LASTFM_API_KEY>
+
+# With scripts repo (clones clamps-tools, sets up deploy key + daily pull)
+./deploy-tier2.sh -t <IP> -p anthropic -m claude-sonnet-4-5 -k <API_KEY> \
+  --scripts-repo user/clamps-tools
 ```
+
+> **Bootstrapping sequence for `--scripts-repo`:** On first deploy Ansible generates an
+> ed25519 deploy key at `~openclaw/.ssh/openclaw-scripts-deploy`, displays the public key,
+> and pauses. Add it as a read-only deploy key in GitHub (repo → Settings → Deploy keys)
+> then press Enter to continue. Subsequent re-runs skip key generation and pause.
 
 ### Maintenance
 ```bash
@@ -71,7 +84,7 @@ OpenClaw runs as a plain systemd service under the `openclaw` user. No container
 #### Task Flow (roles/tier2-setup/tasks/)
 - `main.yml` — OS detection (Debian/Ubuntu only), includes other task files in order: `debian-system.yml` → `install.yml` → `security.yml`
 - `debian-system.yml` — Package install, user creation, Tailscale auth
-- `install.yml` — Node.js 22 via NodeSource (with version guard), openclaw npm install, directory structure, gateway token generation, systemd service, doctor fix, health check, **CLI device pairing bootstrap**, Tailscale Serve HTTPS, weekly monitoring cron
+- `install.yml` — Node.js 22 via NodeSource (with version guard), openclaw npm install, directory structure, gateway token generation, systemd service, doctor fix, health check, **CLI device pairing bootstrap**, Tailscale Serve HTTPS, scripts repo SSH deploy key + clone/pull, `scripts-config.env` render, cron jobs (daily pull, weekly audit, hourly Last.fm sync)
 - `security.yml` — UFW firewall rules, Fail2Ban, SSH hardening. Runs **last** so a failed install does not lock out root SSH.
 
 #### Task Order Note
@@ -96,7 +109,7 @@ Two Podman networks: `openclaw-internal` (agent ↔ LiteLLM ↔ Squid) and `open
 
 ### Secret Management
 Tier 3: Gateway token and LiteLLM master key are generated on first deploy and persisted in the remote `.env` file. Subsequent runs detect and reuse existing secrets.
-Tier 2: Gateway token generated with `openssl rand -hex 24` (must be 48-char hex — openclaw rejects base64 tokens at connection time). Persisted to `~/.openclaw/gateway.token`. Re-runs reuse the existing token. Provider API key written directly to `openclaw.json` by the template.
+Tier 2: Gateway token generated with `openssl rand -hex 24` (must be 48-char hex — openclaw rejects base64 tokens at connection time). Persisted to `~/.openclaw/gateway.token`. Re-runs reuse the existing token. Provider API key written directly to `openclaw.json` by the template. Scripts repo credentials (Last.fm key, Brave key, `OPENCLAW_HOME`) are rendered into `~/scripts-config.env` (mode 0600) by Ansible — never committed to the scripts repo.
 
 ## Development Conventions
 
@@ -104,7 +117,8 @@ Tier 2: Gateway token generated with `openssl rand -hex 24` (must be 48-char hex
 - **Template indentation:** For YAML templates (especially `litellm-config.yaml.j2`), keep Jinja2 control tags (`{% if %}`) at column 0 to prevent indentation errors in rendered output.
 - **LiteLLM model mapping (Tier 3):** Model IDs in `litellm-config.yaml.j2` enable spoofing — a model named `claude-sonnet-4-5` can be backed by any provider.
 - **Tier 2 provider config:** Provider/model/URL/key are injected directly into `openclaw.json.j2` via Jinja2 conditionals — no LiteLLM intermediary.
-- **Tier 2 extra-vars format:** `deploy-tier2.sh` passes all variables as a JSON string via `python3 -c "import json,sys; print(json.dumps({...}))"`. Do not revert to the `key='$VALUE'` shell-quoting format — bot tokens contain colons which survive shlex but can corrupt YAML parsing, and the single quotes end up as literal characters in the rendered JSON.
+- **Tier 2 extra-vars format:** `deploy-tier2.sh` passes all variables as a JSON string via `python3 -c "import json,sys; print(json.dumps({...}))"`. Do not revert to the `key='$VALUE'` shell-quoting format — bot tokens contain colons which survive shlex but can corrupt YAML parsing, and the single quotes end up as literal characters in the rendered JSON. Current positional args: `sys.argv[1..10]` = `llm_provider`, `llm_model`, `llm_url`, `llm_key`, `telegram_userid`, `telegram_bottoken`, `brave_key`, `lastfm_api_key`, `lastfm_username`, `scripts_repo_slug`.
+- **Scripts repo idempotency:** Phase 9a tasks that generate the deploy key and pause are all gated on `not deploy_key_stat.stat.exists`. Re-runs skip straight to pull + env render. Phase 9c clone/pull tasks are additionally gated on `scripts_repo_slug | default('') | length > 0` so deploys without `--scripts-repo` skip them cleanly.
 - **Commit style:** Use conventional commits with scope, e.g. `fix(litellm):`, `feat(tier2):`, `security(ssh):`.
 
 ## openclaw.json Schema Notes (Tier 2)
@@ -170,7 +184,7 @@ loginctl disable-linger openclaw  # optional; system service doesn't need it
 - `roles/tier2-setup/templates/tools.yaml.j2` — Shell allowlist and filesystem permissions
 - `roles/tier2-setup/templates/mcp.json.j2` — MCP server config (memory server only)
 - `roles/tier2-setup/templates/exec-approvals.json.j2` — Approved binary paths
-- `roles/tier2-setup/templates/monitor-openclaw.sh.j2` — Weekly security audit script
+- `roles/tier2-setup/templates/scripts-config.env.j2` — Environment file for scripts repo (rendered with secrets; never committed to scripts repo)
 
 ### Tier 3
 - `deploy.sh` — Interactive/CLI deployment wrapper for tier 3
