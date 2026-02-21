@@ -75,6 +75,14 @@
             "contextWindow": 128000,
             "maxTokens": 4096
           }
+          ,{
+            "id": "MiniMax-M2.1",
+            "name": "MiniMax M2.1",
+            "reasoning": false,
+            "input": ["text"],
+            "contextWindow": 200000,
+            "maxTokens": 8192
+          }
         ]
       }
 {% elif llm_provider == 'ollama' %}
@@ -91,29 +99,52 @@
       "commands": { "native": true, "nativeSkills": true },
       "configWrites": false,
       "dmPolicy": "pairing",
-      "botToken": "{{ telegram_bottoken }}",
       "allowFrom": [ {{ telegram_userid }} ],
       "groupPolicy": "allowlist",
       "dms": { "{{ telegram_userid }}": {} },
       "streamMode": "partial",
       "actions": { "reactions": true, "sendMessage": true },
-      "heartbeat": { "showOk": true, "showAlerts": true, "useIndicator": true }
-    },
+      "heartbeat": { "showOk": true, "showAlerts": true, "useIndicator": true },
+      "accounts": {
+        "default": {
+          "name": "RightClamp",
+          "botToken": "{{ telegram_bottoken }}"
+        }
+      }
+    }
 {% else %}
-    "telegram": { "dmPolicy": "pairing" },
+    "telegram": { "dmPolicy": "pairing" }
 {% endif %}
-    "whatsapp": { "dmPolicy": "pairing" },
-    "discord": { "dmPolicy": "pairing" },
-    "signal": { "dmPolicy": "pairing" }
   },
   "agents": {
     "defaults": {
       "model": {
         "primary": "{{ 'openai' if llm_provider == 'openai_compatible' else llm_provider }}/{{ llm_model }}",
-        "fallbacks": []
+        "fallbacks": [
+{% if llm_provider == 'openai_compatible' %}
+          "openai/MiniMax-M2.1"
+{% endif %}
+        ]
       },
       "heartbeat": { "every": "5m" }
-    }
+    },
+    "list": [
+      {
+        "id": "main",
+        "name": "RightClamp",
+        "workspace": "{{ openclaw_home }}/workspace",
+        "agentDir": "{{ openclaw_home }}/.openclaw/agents/main",
+        "default": true,
+        "model": {
+          "primary": "{{ 'openai' if llm_provider == 'openai_compatible' else llm_provider }}/{{ llm_model }}",
+          "fallbacks": [
+{% if llm_provider == 'openai_compatible' %}
+            "openai/MiniMax-M2.1"
+{% endif %}
+          ]
+        }
+      }
+    ]
   }{% if brave_key | default('') | length > 0 %},
   "tools": {
     "web": {

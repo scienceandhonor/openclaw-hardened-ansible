@@ -171,6 +171,7 @@ if [ "$INTERACTIVE" = true ]; then
         echo ""
         read -p "GitHub scripts repo slug (e.g. user/clamps-tools, leave empty to skip): " SCRIPTS_REPO
     fi
+
 fi
 
 # --- Validation ---

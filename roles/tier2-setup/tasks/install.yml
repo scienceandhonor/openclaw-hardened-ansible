@@ -58,6 +58,7 @@
     - { path: "{{ openclaw_home }}/workspace",                          mode: '0755' }
     - { path: "{{ openclaw_home }}/clawd",                              mode: '0700' }
 
+
 # ── Phase 4: Gateway Token ────────────────────────────────────────────────────
 
 - name: Check if gateway token already exists
