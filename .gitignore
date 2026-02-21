@@ -22,6 +22,7 @@ collections/
 
 # --- Local Notes ---
 openclaw-hardening-ubuntu-vps.md
+docs/
 
 # --- Local Configuration/IDEs ---
 .vscode/
@@ -35,3 +36,9 @@ ansible.log
 # --- OS Specific ---
 .DS_Store
 Thumbs.db
+
+# --- Local Test Data ---
+test-lastfm/config.env
+test-lastfm/lastfm-artists.json
+test-lastfm/lastfm-last-fetch.txt
+test-lastfm/lastfm-artists-cron.log
