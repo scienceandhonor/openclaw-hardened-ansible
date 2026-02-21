@@ -18,6 +18,9 @@ show_help() {
     echo "  --telegram-userid ID  Telegram user ID (integer) to allow"
     echo "  --telegram-bottoken T Telegram bot token"
     echo "  --brave-key KEY       Brave Search API key (enables web search tool)"
+    echo "  --lastfm-key KEY      Last.fm API key (enables hourly artist sync)"
+    echo "  --lastfm-user USER    Last.fm username to track"
+    echo "  --scripts-repo SLUG   GitHub repo slug for operational scripts (e.g. user/clamps-tools)"
     echo "  -h, --help            Show this help message"
     echo ""
     echo "Deploys OpenClaw Tier 2 (direct host, no containers) to an Ubuntu/Debian VPS."
@@ -37,6 +40,9 @@ SSH_KEY=""
 TELEGRAM_USERID=""
 TELEGRAM_BOTTOKEN=""
 BRAVE_KEY=""
+LASTFM_KEY=""
+LASTFM_USERNAME=""
+SCRIPTS_REPO=""
 
 # Parse Arguments
 while [[ "$#" -gt 0 ]]; do
@@ -53,6 +59,9 @@ while [[ "$#" -gt 0 ]]; do
         --telegram-userid) TELEGRAM_USERID="$2"; shift ;;
         --telegram-bottoken) TELEGRAM_BOTTOKEN="$2"; shift ;;
         --brave-key) BRAVE_KEY="$2"; shift ;;
+        --lastfm-key) LASTFM_KEY="$2"; shift ;;
+        --lastfm-user) LASTFM_USERNAME="$2"; shift ;;
+        --scripts-repo) SCRIPTS_REPO="$2"; shift ;;
         -h|--help) show_help; exit 0 ;;
         *) echo "Unknown parameter: $1"; exit 1 ;;
     esac
@@ -147,6 +156,21 @@ if [ "$INTERACTIVE" = true ]; then
         read -p "Enable Brave Search? Enter API key or leave empty to skip: " input_brave
         BRAVE_KEY="${input_brave}"
     fi
+
+    if [ -z "$LASTFM_KEY" ] && [ -z "$LASTFM_USERNAME" ]; then
+        echo ""
+        read -p "Enable Last.fm artist sync? Enter Last.fm username or leave empty to skip: " input_lastfm_user
+        if [ -n "$input_lastfm_user" ]; then
+            LASTFM_USERNAME="$input_lastfm_user"
+            read -s -p "Last.fm API key: " LASTFM_KEY
+            echo ""
+        fi
+    fi
+
+    if [ -z "$SCRIPTS_REPO" ]; then
+        echo ""
+        read -p "GitHub scripts repo slug (e.g. user/clamps-tools, leave empty to skip): " SCRIPTS_REPO
+    fi
 fi
 
 # --- Validation ---
@@ -163,6 +187,15 @@ if [ -z "$LLM_URL" ] && [ "$LLM_PROVIDER" == "ollama" ]; then LLM_URL="http://lo
 if [ -z "$LLM_KEY" ]; then LLM_KEY="sk-placeholder"; fi
 
 # Require both Telegram params or neither
+if [ -n "$LASTFM_KEY" ] && [ -z "$LASTFM_USERNAME" ]; then
+    echo "Error: --lastfm-user is required when --lastfm-key is set."
+    exit 1
+fi
+if [ -n "$LASTFM_USERNAME" ] && [ -z "$LASTFM_KEY" ]; then
+    echo "Error: --lastfm-key is required when --lastfm-user is set."
+    exit 1
+fi
+
 if [ -n "$TELEGRAM_BOTTOKEN" ] && [ -z "$TELEGRAM_USERID" ]; then
     echo "Error: --telegram-userid is required when --telegram-bottoken is set."
     exit 1
@@ -191,6 +224,16 @@ if [ -n "$BRAVE_KEY" ]; then
     echo "Brave:     enabled (key=***)"
 else
     echo "Brave:     not configured"
+fi
+if [ -n "$LASTFM_USERNAME" ]; then
+    echo "Last.fm:   user=$LASTFM_USERNAME key=***"
+else
+    echo "Last.fm:   not configured"
+fi
+if [ -n "$SCRIPTS_REPO" ]; then
+    echo "Scripts:   $SCRIPTS_REPO (r/o deploy key)"
+else
+    echo "Scripts:   not configured"
 fi
 echo "----------------------------------------"
 
@@ -241,7 +284,10 @@ print(json.dumps({
     'telegram_userid':   sys.argv[5],
     'telegram_bottoken': sys.argv[6],
     'brave_key':         sys.argv[7],
-}))" "$LLM_PROVIDER" "$LLM_MODEL" "$LLM_URL" "$LLM_KEY" "$TELEGRAM_USERID" "$TELEGRAM_BOTTOKEN" "$BRAVE_KEY")
+    'lastfm_api_key':    sys.argv[8],
+    'lastfm_username':   sys.argv[9],
+    'scripts_repo_slug': sys.argv[10],
+}))" "$LLM_PROVIDER" "$LLM_MODEL" "$LLM_URL" "$LLM_KEY" "$TELEGRAM_USERID" "$TELEGRAM_BOTTOKEN" "$BRAVE_KEY" "$LASTFM_KEY" "$LASTFM_USERNAME" "$SCRIPTS_REPO")
 
 # Run Playbook
 ansible-playbook -i "$TEMP_INVENTORY" playbook-tier2.yml $ANSIBLE_ARGS \

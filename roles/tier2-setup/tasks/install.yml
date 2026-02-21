@@ -362,7 +362,7 @@
   debug:
     msg: "{{ tailscale_serve_result.stdout_lines | default([]) + tailscale_serve_result.stderr_lines | default([]) }}"
 
-# ── Phase 9: Security Monitoring ─────────────────────────────────────────────
+# ── Phase 9: Security Monitoring + Scripts Repo ───────────────────────────────
 
 - name: Set OPENCLAW_GATEWAY_TOKEN in openclaw user .bashrc
   lineinfile:
@@ -374,23 +374,197 @@
     group: "{{ openclaw_user }}"
     mode: '0600'
 
-- name: Deploy security monitoring script
-  template:
-    src: monitor-openclaw.sh.j2
-    dest: "{{ openclaw_home }}/check-openclaw-security.sh"
-    owner: "{{ openclaw_user }}"
-    group: "{{ openclaw_user }}"
-    mode: '0700'
+# ── Phase 9a: SSH Deploy Key (idempotent) ─────────────────────────────────────
 
-- name: Schedule weekly security monitoring (every Sunday 09:00)
+- name: Check if scripts deploy key exists
+  stat:
+    path: "{{ openclaw_home }}/.ssh/openclaw-scripts-deploy"
+  register: deploy_key_stat
+  when: scripts_repo_slug | default('') | length > 0
+
+- name: Generate SSH deploy key for scripts repo
+  command: >
+    ssh-keygen -t ed25519 -f "{{ openclaw_home }}/.ssh/openclaw-scripts-deploy"
+    -C "openclaw-scripts-ro" -N ""
+  become_user: "{{ openclaw_user }}"
+  when: scripts_repo_slug | default('') | length > 0 and not deploy_key_stat.stat.exists
+
+- name: Read deploy key public key
+  slurp:
+    src: "{{ openclaw_home }}/.ssh/openclaw-scripts-deploy.pub"
+  register: deploy_pub_key
+  when: scripts_repo_slug | default('') | length > 0 and not deploy_key_stat.stat.exists
+
+- name: Pause — add deploy key to GitHub before continuing
+  pause:
+    prompt: |2+
+
+      ============================================================
+      New SSH deploy key generated for {{ scripts_repo_slug }}
+
+      Add this as a READ-ONLY deploy key in GitHub:
+      {{ scripts_repo_slug }} → Settings → Deploy keys → Add
+
+      {{ deploy_pub_key.content | b64decode | trim }}
+
+      ============================================================
+      Press Enter once the deploy key has been added to GitHub
+  when: scripts_repo_slug | default('') | length > 0 and not deploy_key_stat.stat.exists
+
+# ── Phase 9b: SSH Config and Known Hosts ──────────────────────────────────────
+
+- name: Fetch github.com SSH host key
+  command: ssh-keyscan -t ed25519 github.com
+  register: github_keyscan
+  delegate_to: localhost
+  become: false
+  changed_when: false
+  when: scripts_repo_slug | default('') | length > 0
+
+- name: Set github_ssh_host_key fact
+  set_fact:
+    github_ssh_host_key: "{{ github_keyscan.stdout | trim }}"
+  when: scripts_repo_slug | default('') | length > 0
+
+- name: Add github.com to known_hosts
+  known_hosts:
+    name: github.com
+    key: "{{ github_ssh_host_key }}"
+    path: "{{ openclaw_home }}/.ssh/known_hosts"
+  when: scripts_repo_slug | default('') | length > 0
+
+- name: Write SSH config stanza for scripts deploy key
+  blockinfile:
+    path: "{{ openclaw_home }}/.ssh/config"
+    marker: "# {mark} clamps-tools deploy key"
+    block: |
+      Host github-clamps-tools
+          HostName github.com
+          User git
+          IdentityFile ~/.ssh/openclaw-scripts-deploy
+          IdentitiesOnly yes
+    create: true
+    owner: "{{ openclaw_user }}"
+    mode: '0600'
+  when: scripts_repo_slug | default('') | length > 0
+
+# ── Phase 9c: Clone or Pull Scripts Repo ──────────────────────────────────────
+
+- name: Check if scripts repo already cloned
+  stat:
+    path: "{{ openclaw_home }}/scripts/.git"
+  register: scripts_git_stat
+  when: scripts_repo_slug | default('') | length > 0
+
+- name: Clone scripts repo (first deploy)
+  command: >
+    git clone git@github-clamps-tools:{{ scripts_repo_slug }}.git
+    {{ openclaw_home }}/scripts
+  become_user: "{{ openclaw_user }}"
+  environment:
+    HOME: "{{ openclaw_home }}"
+    GIT_SSH_COMMAND: "ssh -F {{ openclaw_home }}/.ssh/config"
+  when: scripts_repo_slug | default('') | length > 0 and not scripts_git_stat.stat.exists
+
+- name: Pull latest scripts (re-deploy)
+  command: git -C {{ openclaw_home }}/scripts pull
+  become_user: "{{ openclaw_user }}"
+  environment:
+    HOME: "{{ openclaw_home }}"
+    GIT_SSH_COMMAND: "ssh -F {{ openclaw_home }}/.ssh/config"
+  when: scripts_repo_slug | default('') | length > 0 and scripts_git_stat.stat.exists
+
+# ── Phase 9d: Render scripts-config.env ───────────────────────────────────────
+
+- name: Render scripts-config.env
+  template:
+    src: scripts-config.env.j2
+    dest: "{{ openclaw_home }}/scripts-config.env"
+    owner: "{{ openclaw_user }}"
+    mode: '0600'
+
+# ── Phase 9e: Cron Jobs ────────────────────────────────────────────────────────
+
+- name: Daily git pull for scripts repo
+  cron:
+    name: "scripts repo pull"
+    hour: "4"
+    minute: "0"
+    job: "GIT_SSH_COMMAND='ssh -F ~/.ssh/config' git -C ~/scripts pull >> ~/scripts-pull.log 2>&1"
+    user: "{{ openclaw_user }}"
+  when: scripts_repo_slug | default('') | length > 0
+
+- name: Weekly security monitor
   cron:
     name: "OpenClaw security audit"
     minute: "0"
     hour: "9"
     weekday: "0"
-    job: "{{ openclaw_home }}/check-openclaw-security.sh >> {{ openclaw_home }}/security-audit-cron.log 2>&1"
+    job: "~/scripts/monitor-openclaw.sh >> ~/security-audit-cron.log 2>&1"
     user: "{{ openclaw_user }}"
-    state: present
+  when: scripts_repo_slug | default('') | length > 0
+
+- name: Remove Last.fm artist sync from system cron (now managed by OpenClaw cron)
+  cron:
+    name: "Last.fm artist sync"
+    user: "{{ openclaw_user }}"
+    state: absent
+
+- name: Configure Last.fm artist sync in OpenClaw cron
+  shell: |
+    python3 - <<'PYEOF'
+    import json, os
+
+    jobs_path = os.environ['HOME'] + '/.openclaw/cron/jobs.json'
+    job_id    = 'job-lastfm-sync'
+    enable    = os.environ.get('LASTFM_ENABLED') == '1'
+
+    os.makedirs(os.path.dirname(jobs_path), exist_ok=True)
+
+    try:
+        with open(jobs_path) as f:
+            store = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        store = {'version': 1, 'jobs': []}
+
+    before = json.dumps(store, sort_keys=True)
+
+    store['jobs'] = [j for j in store['jobs'] if j.get('jobId') != job_id]
+
+    if enable:
+        store['jobs'].append({
+            'jobId':         job_id,
+            'name':          'Last.fm artist sync',
+            'enabled':       True,
+            'schedule':      {'kind': 'cron', 'expr': '0 * * * *', 'staggerMs': 0},
+            'sessionTarget': 'isolated',
+            'wakeMode':      'now',
+            'payload':       {
+                'kind':    'agentTurn',
+                'message': 'Run ~/scripts/fetch-lastfm-artists.sh to sync Last.fm recently played artists. Report how many new artists were added.'
+            },
+            'delivery':      {'mode': 'none'}
+        })
+
+    after = json.dumps(store, sort_keys=True)
+
+    if before != after:
+        tmp = jobs_path + '.tmp'
+        with open(tmp, 'w') as f:
+            json.dump(store, f, indent=2)
+        os.replace(tmp, jobs_path)
+        print('changed')
+    else:
+        print('ok')
+    PYEOF
+  become_user: "{{ openclaw_user }}"
+  environment:
+    HOME: "{{ openclaw_home }}"
+    LASTFM_ENABLED: "{{ '1' if (lastfm_api_key | default('') | length > 0 and lastfm_username | default('') | length > 0) else '0' }}"
+  register: lastfm_cron_result
+  changed_when: "'changed' in lastfm_cron_result.stdout"
+  when: scripts_repo_slug | default('') | length > 0
+  notify: Restart OpenClaw
 
 # ── Phase 10: Security Audit ──────────────────────────────────────────────────
 

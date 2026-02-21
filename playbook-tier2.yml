@@ -126,6 +126,7 @@
 
     # Optional integrations
     brave_key: "{{ brave_key | default('', true) }}"
+    scripts_repo_slug: "{{ scripts_repo_slug | default('', true) }}"
 
   roles:
     - tier2-setup
@@ -156,4 +157,4 @@
           - "🤖 LLM:                  {{ llm_provider }} / {{ llm_model }}"
           - "🔐 Gateway token:        {{ hostvars[groups['all'][0]]['gateway_token'] }}"
           - "⚠️  Password auth DISABLED. Keep ssh-keys/{{ target_hostname }}.pem safe."
-          - "📋 Weekly audit:         {{ openclaw_home }}/check-openclaw-security.sh"
+          - "📜 Scripts repo:         ~/scripts/ (daily pull from {{ scripts_repo_slug | default('not configured') }})"
