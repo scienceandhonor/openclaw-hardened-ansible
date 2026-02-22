@@ -87,7 +87,7 @@ OpenClaw runs as a plain systemd service under the `openclaw` user. No container
 #### Task Flow (roles/tier2-setup/tasks/)
 - `main.yml` — OS detection (Debian/Ubuntu only), includes other task files in order: `debian-system.yml` → `install.yml` → `security.yml`
 - `debian-system.yml` — Package install, user creation, Tailscale auth
-- `install.yml` — Node.js 22 via NodeSource (with version guard), openclaw npm install, directory structure, gateway token generation, systemd service, doctor fix, health check, **CLI device pairing bootstrap**, Tailscale Serve HTTPS, scripts repo SSH deploy key + clone/pull, `scripts-config.env` render, cron jobs (daily pull, weekly audit, hourly Last.fm sync)
+- `install.yml` — Node.js 22 via NodeSource (with version guard), openclaw npm install, directory structure, gateway token generation, systemd service, doctor fix, health check, **CLI device pairing bootstrap**, Tailscale Serve HTTPS, scripts repo SSH deploy key + clone/pull, `scripts-config.env` render, cron jobs (daily pull, weekly audit, hourly Last.fm sync, daily band check, weekly bandcheck corpus refresh)
 - `security.yml` — UFW firewall rules, Fail2Ban, SSH hardening. Runs **last** so a failed install does not lock out root SSH.
 
 #### Task Order Note
@@ -112,7 +112,7 @@ Two Podman networks: `openclaw-internal` (agent ↔ LiteLLM ↔ Squid) and `open
 
 ### Secret Management
 Tier 3: Gateway token and LiteLLM master key are generated on first deploy and persisted in the remote `.env` file. Subsequent runs detect and reuse existing secrets.
-Tier 2: Gateway token generated with `openssl rand -hex 24` (must be 48-char hex — openclaw rejects base64 tokens at connection time). Persisted to `~/.openclaw/gateway.token`. Re-runs reuse the existing token. Provider API key written directly to `openclaw.json` by the template. Scripts repo credentials (Last.fm key, Brave key, `OPENCLAW_HOME`) are rendered into `~/scripts-config.env` (mode 0600) by Ansible — never committed to the scripts repo.
+Tier 2: Gateway token generated with `openssl rand -hex 24` (must be 48-char hex — openclaw rejects base64 tokens at connection time). Persisted to `~/.openclaw/gateway.token`. Re-runs reuse the existing token. Provider API key written directly to `openclaw.json` by the template — **except MiniMax**, which uses `auth.profiles` (no inline `apiKey` in the provider block; OpenClaw reads credentials via its own credential store). Scripts repo credentials (Last.fm key, Brave key, `OPENCLAW_HOME`) are rendered into `~/scripts-config.env` (mode 0600) by Ansible — never committed to the scripts repo.
 
 ## Development Conventions
 
@@ -137,11 +137,13 @@ Hard-won constraints from live deployment — openclaw doctor/validator enforces
 - **`models.providers.<provider>.baseUrl`** — Required field for anthropic and openai providers. Omitting it causes schema validation failure on startup.
 - **`models.providers.<provider>.models`** — Required array for anthropic and openai providers. Must include at least the configured model.
 - **`agents.defaults.model.primary` format** — Must use the JSON provider key, not the deploy-time variable name. The `openai_compatible` deploy param registers the provider as `"openai"` in the JSON, so the model reference must be `openai/<model>`, not `openai_compatible/<model>`. The `minimax` deploy param registers as `"minimax"`, so references are `minimax/<model>`. The template handles both with a Jinja2 ternary in the primary field.
+- **`agents.list[].agentDir`** — Do not set this field. If it points to an existing directory, OpenClaw tries to `read()` it as a file and crashes every session with `[tools] EISDIR: illegal operation on a directory, read`. Omit `agentDir` entirely and let OpenClaw use its defaults.
 - **`agents.list` agent-level model override** — Must use the object form `{ "primary": "provider/model", "fallbacks": [...] }`. The string shorthand `"model": "provider/model"` is silently ignored — the agent inherits the default instead. Dashboard writes use the object form, so this is only a template concern.
 - **Unused channels** — Omit whatsapp, discord, and signal from the `channels` block entirely. Stub entries like `{ "dmPolicy": "pairing" }` are enough to start the health monitor, producing restart-limit warnings. `"enabled": false` is not a valid key for those channels (rejected by the validator).
 - **`channels.telegram.accounts`** — The Telegram bot token lives in `accounts.default.botToken`, not the top-level `botToken` field. The `accounts` object supports multiple named bot accounts; the `default` account is used unless a `bindings` rule routes a conversation elsewhere.
 - **`channels.telegram.configWrites`** — Must be `false`. When `true`, chat messages can modify agent config, which is unsafe with prompt injection risk.
 - **Telegram requires both `userid` and `bottoken`** — The template condition checks both. If only one is set, the block falls back to `{ "dmPolicy": "pairing" }`. Passing only one via CLI flags is caught by validation in `deploy-tier2.sh` before the playbook runs.
+- **MiniMax provider** — Must use `api: "anthropic-messages"` with `baseUrl: "https://api.minimax.io/anthropic"`. Do **not** use `openai-completions` against MiniMax's `/v1` endpoint — it does not handle tool schemas correctly and causes models to emit empty tool calls (`tool= toolCallId=`), crashing every agent run. Do **not** include an inline `apiKey` in the MiniMax provider block; use `auth.profiles` instead.
 - **Semantic memory** — openclaw auto-detects embedding providers (OpenAI, Gemini, Voyage, or local GGUF model) and falls back to BM25-only if none are available. Do not explicitly disable it.
 
 ## openclaw Device Pairing (Tier 2 Headless Bootstrap)
