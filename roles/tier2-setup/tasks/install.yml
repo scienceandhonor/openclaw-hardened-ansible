@@ -533,10 +533,11 @@
 
     if enable:
         store['jobs'].append({
+            'id':            job_id,
             'jobId':         job_id,
             'name':          'Last.fm artist sync',
             'enabled':       True,
-            'schedule':      {'kind': 'cron', 'expr': '0 * * * *', 'staggerMs': 0},
+            'schedule':      {'kind': 'cron', 'expr': '0 */3 * * *', 'staggerMs': 0},
             'sessionTarget': 'isolated',
             'wakeMode':      'now',
             'payload':       {
@@ -601,6 +602,7 @@
 
     if enable:
         store['jobs'].append({
+            'id':            job_id,
             'jobId':         job_id,
             'name':          'Band NSBM check',
             'enabled':       True,
