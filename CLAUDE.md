@@ -37,8 +37,11 @@ Automated Ansible deployment for hardened OpenClaw AI agents in two tiers:
 # With SSH key
 ./deploy-tier2.sh --target <IP> --ssh-user ubuntu --ssh-key ~/key.pem --provider openai -m gpt-4o -k <API_KEY>
 
-# With OpenAI-compatible provider (e.g. MiniMax)
-./deploy-tier2.sh -t <IP> -p openai_compatible -m MiniMax-M2.5 -u https://api.minimax.io/v1 -k <API_KEY>
+# With MiniMax (dedicated provider — uses anthropic-messages API, URL is hardcoded)
+./deploy-tier2.sh -t <IP> -p minimax -m MiniMax-M2.5 -k <API_KEY>
+
+# With generic OpenAI-compatible provider (custom base URL)
+./deploy-tier2.sh -t <IP> -p openai_compatible -m <MODEL> -u <BASE_URL> -k <API_KEY>
 
 # With Telegram channel
 ./deploy-tier2.sh -t <IP> -p anthropic -m claude-sonnet-4-5 -k <API_KEY> \
@@ -133,7 +136,7 @@ Hard-won constraints from live deployment — openclaw doctor/validator enforces
 - **`models.providers.<provider>.api`** — Required field for all providers except ollama. Valid values: `"anthropic-messages"`, `"openai-completions"`, `"openai-responses"`. Omitting it causes `"No API provider registered for api: undefined"` crash on the first message.
 - **`models.providers.<provider>.baseUrl`** — Required field for anthropic and openai providers. Omitting it causes schema validation failure on startup.
 - **`models.providers.<provider>.models`** — Required array for anthropic and openai providers. Must include at least the configured model.
-- **`agents.defaults.model.primary` format** — Must use the JSON provider key, not the deploy-time variable name. The `openai_compatible` deploy param registers the provider as `"openai"` in the JSON, so the model reference must be `openai/<model>`, not `openai_compatible/<model>`. The template handles this with a Jinja2 ternary in the primary field.
+- **`agents.defaults.model.primary` format** — Must use the JSON provider key, not the deploy-time variable name. The `openai_compatible` deploy param registers the provider as `"openai"` in the JSON, so the model reference must be `openai/<model>`, not `openai_compatible/<model>`. The `minimax` deploy param registers as `"minimax"`, so references are `minimax/<model>`. The template handles both with a Jinja2 ternary in the primary field.
 - **`agents.list` agent-level model override** — Must use the object form `{ "primary": "provider/model", "fallbacks": [...] }`. The string shorthand `"model": "provider/model"` is silently ignored — the agent inherits the default instead. Dashboard writes use the object form, so this is only a template concern.
 - **Unused channels** — Omit whatsapp, discord, and signal from the `channels` block entirely. Stub entries like `{ "dmPolicy": "pairing" }` are enough to start the health monitor, producing restart-limit warnings. `"enabled": false` is not a valid key for those channels (rejected by the validator).
 - **`channels.telegram.accounts`** — The Telegram bot token lives in `accounts.default.botToken`, not the top-level `botToken` field. The `accounts` object supports multiple named bot accounts; the `default` account is used unless a `bindings` rule routes a conversation elsewhere.

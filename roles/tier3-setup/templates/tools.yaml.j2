@@ -3,6 +3,7 @@ tools:
   shell:
     enabled: true
     allowlist:
+      - "bash"
       - "ls"
       - "cat"
       - "grep"
@@ -16,6 +17,7 @@ tools:
     enabled: true
     allowedPaths:
       - "/opt/openclaw/workspace"
+      - "/home/openclaw/scripts"
     deniedPaths:
       - "/home/openclaw/.ssh"
       - "/home/openclaw/.clawdbot/credentials"

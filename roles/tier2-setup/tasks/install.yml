@@ -54,7 +54,6 @@
   loop:
     - { path: "{{ openclaw_home }}/.openclaw",                          mode: '0700' }
     - { path: "{{ openclaw_home }}/.openclaw/credentials",              mode: '0700' }
-    - { path: "{{ openclaw_home }}/.openclaw/agents/main/sessions",     mode: '0700' }
     - { path: "{{ openclaw_home }}/workspace",                          mode: '0755' }
     - { path: "{{ openclaw_home }}/clawd",                              mode: '0700' }
 

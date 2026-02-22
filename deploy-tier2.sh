@@ -7,7 +7,7 @@ show_help() {
     echo ""
     echo "Options:"
     echo "  -t, --target IP       Target IP address"
-    echo "  -p, --provider NAME   LLM Provider (ollama, anthropic, openai, openai_compatible)"
+    echo "  -p, --provider NAME   LLM Provider (ollama, anthropic, openai, minimax, openai_compatible)"
     echo "  -m, --model NAME      Model Name (e.g., llama3, claude-sonnet-4-5)"
     echo "  -u, --url URL         API Base URL (required for ollama and openai_compatible)"
     echo "  -k, --key KEY         API Key"
@@ -99,12 +99,14 @@ if [ "$INTERACTIVE" = true ]; then
         echo "  1) Ollama (Default)"
         echo "  2) Anthropic"
         echo "  3) OpenAI"
-        echo "  4) OpenAI-compatible (custom base URL)"
-        read -p "Choice [1-4]: " provider_choice
+        echo "  4) MiniMax"
+        echo "  5) OpenAI-compatible (custom base URL)"
+        read -p "Choice [1-5]: " provider_choice
         case $provider_choice in
             2) LLM_PROVIDER="anthropic" ;;
             3) LLM_PROVIDER="openai" ;;
-            4) LLM_PROVIDER="openai_compatible" ;;
+            4) LLM_PROVIDER="minimax" ;;
+            5) LLM_PROVIDER="openai_compatible" ;;
             *) LLM_PROVIDER="ollama" ;;
         esac
     fi
@@ -115,6 +117,7 @@ if [ "$INTERACTIVE" = true ]; then
         if [ "$LLM_PROVIDER" == "ollama" ]; then default_model="llama3"; fi
         if [ "$LLM_PROVIDER" == "anthropic" ]; then default_model="claude-sonnet-4-5"; fi
         if [ "$LLM_PROVIDER" == "openai" ]; then default_model="gpt-4o"; fi
+        if [ "$LLM_PROVIDER" == "minimax" ]; then default_model="MiniMax-M2.5"; fi
 
         read -p "Enter Model Name [$default_model]: " input_model
         LLM_MODEL="${input_model:-$default_model}"
@@ -129,6 +132,7 @@ if [ "$INTERACTIVE" = true ]; then
             echo ""
             read -p "Enter API Base URL: " LLM_URL
         fi
+        # minimax: base URL is hardcoded in the template
     fi
 
     if [ -z "$LLM_KEY" ]; then
