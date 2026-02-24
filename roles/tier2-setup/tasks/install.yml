@@ -636,6 +636,111 @@
   when: scripts_repo_slug | default('') | length > 0
   notify: Restart OpenClaw
 
+# ── Phase 9f: Substack Email Digest ──────────────────────────────────────────
+
+- name: Ensure scripts directory exists (email digest may run without scripts repo)
+  file:
+    path: "{{ openclaw_home }}/scripts"
+    state: directory
+    owner: "{{ openclaw_user }}"
+    group: "{{ openclaw_user }}"
+    mode: '0755'
+  when: email_imap_host | default('') | length > 0
+
+- name: Deploy Substack IMAP poller script
+  template:
+    src: check-substack-email.py.j2
+    dest: "{{ openclaw_home }}/scripts/check-substack-email.py"
+    owner: "{{ openclaw_user }}"
+    group: "{{ openclaw_user }}"
+    mode: '0750'
+  when: email_imap_host | default('') | length > 0
+
+- name: Deploy Substack check wrapper script
+  template:
+    src: run-substack-check.sh.j2
+    dest: "{{ openclaw_home }}/scripts/run-substack-check.sh"
+    owner: "{{ openclaw_user }}"
+    group: "{{ openclaw_user }}"
+    mode: '0750'
+  when: email_imap_host | default('') | length > 0
+
+- name: Deploy Substack digest prompt
+  template:
+    src: substack-prompt.txt.j2
+    dest: "{{ openclaw_home }}/scripts/substack-prompt.txt"
+    owner: "{{ openclaw_user }}"
+    group: "{{ openclaw_user }}"
+    mode: '0644'
+  when: email_imap_host | default('') | length > 0
+
+- name: Create email state directory
+  file:
+    path: "{{ openclaw_home }}/.openclaw/email-state"
+    state: directory
+    owner: "{{ openclaw_user }}"
+    group: "{{ openclaw_user }}"
+    mode: '0700'
+  when: email_imap_host | default('') | length > 0
+
+- name: Configure Substack email digest in OpenClaw cron
+  shell: |
+    python3 - <<'PYEOF'
+    import json, os
+
+    jobs_path = os.environ['HOME'] + '/.openclaw/cron/jobs.json'
+    job_id    = 'substack-email-digest'
+    enable    = os.environ.get('SUBSTACK_ENABLED') == '1'
+    tg_on     = os.environ.get('TELEGRAM_ENABLED') == '1'
+
+    os.makedirs(os.path.dirname(jobs_path), exist_ok=True)
+
+    try:
+        with open(jobs_path) as f:
+            store = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        store = {'version': 1, 'jobs': []}
+
+    before = json.dumps(store, sort_keys=True)
+
+    store['jobs'] = [j for j in store['jobs'] if j.get('jobId') != job_id]
+
+    if enable:
+        store['jobs'].append({
+            'id':            job_id,
+            'jobId':         job_id,
+            'name':          'Substack email digest',
+            'enabled':       True,
+            'schedule':      {'kind': 'cron', 'expr': '0 * * * *', 'staggerMs': 0},
+            'sessionTarget': 'isolated',
+            'wakeMode':      'now',
+            'payload':       {
+                'kind':    'agentTurn',
+                'message': 'Run ~/scripts/run-substack-check.sh then follow the instructions in ~/scripts/substack-prompt.txt'
+            },
+            'delivery':      {'mode': 'channel' if tg_on else 'none'}
+        })
+
+    after = json.dumps(store, sort_keys=True)
+
+    if before != after:
+        tmp = jobs_path + '.tmp'
+        with open(tmp, 'w') as f:
+            json.dump(store, f, indent=2)
+        os.replace(tmp, jobs_path)
+        print('changed')
+    else:
+        print('ok')
+    PYEOF
+  become_user: "{{ openclaw_user }}"
+  environment:
+    HOME: "{{ openclaw_home }}"
+    SUBSTACK_ENABLED: "{{ '1' if email_imap_host | default('') | length > 0 else '0' }}"
+    TELEGRAM_ENABLED: "{{ '1' if telegram_userid | default('') | length > 0 else '0' }}"
+  register: substack_cron_result
+  changed_when: "'changed' in substack_cron_result.stdout"
+  notify: Restart OpenClaw
+
 # ── Phase 10: Security Audit ──────────────────────────────────────────────────
 
 - name: Run initial security audit

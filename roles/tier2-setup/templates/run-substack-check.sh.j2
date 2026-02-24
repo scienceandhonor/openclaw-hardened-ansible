@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+# run-substack-check.sh — sources scripts-config.env and runs the IMAP poller.
+# Deployed by Ansible; intended to be called from the OpenClaw cron job.
+set -euo pipefail
+
+[ -f "$HOME/scripts-config.env" ] && source "$HOME/scripts-config.env"
+
+exec python3 "$(dirname "$(realpath "$0")")/check-substack-email.py"
