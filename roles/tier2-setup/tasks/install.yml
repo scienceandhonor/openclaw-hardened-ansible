@@ -637,42 +637,10 @@
   notify: Restart OpenClaw
 
 # ── Phase 9f: Substack Email Digest ──────────────────────────────────────────
-
-- name: Ensure scripts directory exists (email digest may run without scripts repo)
-  file:
-    path: "{{ openclaw_home }}/scripts"
-    state: directory
-    owner: "{{ openclaw_user }}"
-    group: "{{ openclaw_user }}"
-    mode: '0755'
-  when: email_imap_host | default('') | length > 0
-
-- name: Deploy Substack IMAP poller script
-  template:
-    src: check-substack-email.py.j2
-    dest: "{{ openclaw_home }}/scripts/check-substack-email.py"
-    owner: "{{ openclaw_user }}"
-    group: "{{ openclaw_user }}"
-    mode: '0750'
-  when: email_imap_host | default('') | length > 0
-
-- name: Deploy Substack check wrapper script
-  template:
-    src: run-substack-check.sh.j2
-    dest: "{{ openclaw_home }}/scripts/run-substack-check.sh"
-    owner: "{{ openclaw_user }}"
-    group: "{{ openclaw_user }}"
-    mode: '0750'
-  when: email_imap_host | default('') | length > 0
-
-- name: Deploy Substack digest prompt
-  template:
-    src: substack-prompt.txt.j2
-    dest: "{{ openclaw_home }}/scripts/substack-prompt.txt"
-    owner: "{{ openclaw_user }}"
-    group: "{{ openclaw_user }}"
-    mode: '0644'
-  when: email_imap_host | default('') | length > 0
+# The IMAP poller (check-substack-email.py), bash wrapper (run-substack-check.sh),
+# and prompt (substack-prompt.txt) live in clamps-tools and are deployed via the
+# scripts repo (Phase 9a-9c). --scripts-repo is therefore required when email is
+# configured; deploy-tier2.sh enforces this before the playbook runs.
 
 - name: Create email state directory
   file:

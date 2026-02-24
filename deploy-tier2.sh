@@ -243,6 +243,13 @@ if [ "$EMAIL_FIELDS_SET" -gt 0 ] && [ "$EMAIL_FIELDS_SET" -lt 3 ]; then
     echo "Error: --email-imap-host, --email-imap-user, and --email-imap-password must all be provided together."
     exit 1
 fi
+# Email digest requires the scripts repo: the IMAP poller and prompt live in clamps-tools
+if [ "$EMAIL_FIELDS_SET" -eq 3 ] && [ -z "$SCRIPTS_REPO" ]; then
+    echo "Error: --scripts-repo is required when email digest is configured."
+    echo "       The IMAP poller and prompt (check-substack-email.py, substack-prompt.txt)"
+    echo "       are deployed via clamps-tools, not directly by Ansible."
+    exit 1
+fi
 if [ -z "$EMAIL_FOLDER" ]; then EMAIL_FOLDER="INBOX"; fi
 
 # --- Execution ---
