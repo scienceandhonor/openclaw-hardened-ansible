@@ -562,7 +562,7 @@
     name: "Substack email fetch"
     minute: "0"
     hour: "*"
-    job: "~/scripts/run-substack-check.sh >> ~/.openclaw/email-state/fetch.log 2>&1"
+    job: "~/scripts/run-substack-check.sh >> ~/.openclaw/email-state/fetch.log 2>&1; tail -c 1048576 ~/.openclaw/email-state/fetch.log > ~/.openclaw/email-state/fetch.log.tmp && mv ~/.openclaw/email-state/fetch.log.tmp ~/.openclaw/email-state/fetch.log"
     user: "{{ openclaw_user }}"
     state: "{{ 'present' if email_imap_host | default('') | length > 0 else 'absent' }}"
 
