@@ -21,6 +21,10 @@ show_help() {
     echo "  --lastfm-key KEY      Last.fm API key (enables hourly artist sync)"
     echo "  --lastfm-user USER    Last.fm username to track"
     echo "  --scripts-repo SLUG   GitHub repo slug for operational scripts (e.g. user/clamps-tools)"
+    echo "  --email-imap-host H   IMAP server hostname (e.g. imap.gmail.com) — enables Substack digest"
+    echo "  --email-imap-user U   IMAP login address"
+    echo "  --email-imap-password P  IMAP app password"
+    echo "  --email-folder F      IMAP folder/label to poll (default: INBOX)"
     echo "  -h, --help            Show this help message"
     echo ""
     echo "Deploys OpenClaw Tier 2 (direct host, no containers) to an Ubuntu/Debian VPS."
@@ -43,6 +47,10 @@ BRAVE_KEY=""
 LASTFM_KEY=""
 LASTFM_USERNAME=""
 SCRIPTS_REPO=""
+EMAIL_IMAP_HOST=""
+EMAIL_IMAP_USER=""
+EMAIL_IMAP_PASSWORD=""
+EMAIL_FOLDER=""
 
 # Parse Arguments
 while [[ "$#" -gt 0 ]]; do
@@ -62,6 +70,10 @@ while [[ "$#" -gt 0 ]]; do
         --lastfm-key) LASTFM_KEY="$2"; shift ;;
         --lastfm-user) LASTFM_USERNAME="$2"; shift ;;
         --scripts-repo) SCRIPTS_REPO="$2"; shift ;;
+        --email-imap-host) EMAIL_IMAP_HOST="$2"; shift ;;
+        --email-imap-user) EMAIL_IMAP_USER="$2"; shift ;;
+        --email-imap-password) EMAIL_IMAP_PASSWORD="$2"; shift ;;
+        --email-folder) EMAIL_FOLDER="$2"; shift ;;
         -h|--help) show_help; exit 0 ;;
         *) echo "Unknown parameter: $1"; exit 1 ;;
     esac
@@ -176,6 +188,18 @@ if [ "$INTERACTIVE" = true ]; then
         read -p "GitHub scripts repo slug (e.g. user/clamps-tools, leave empty to skip): " SCRIPTS_REPO
     fi
 
+    if [ -z "$EMAIL_IMAP_HOST" ] && [ -z "$EMAIL_IMAP_USER" ]; then
+        echo ""
+        read -p "Enable Substack email digest? Enter IMAP host (e.g. imap.gmail.com) or leave empty to skip: " EMAIL_IMAP_HOST
+        if [ -n "$EMAIL_IMAP_HOST" ]; then
+            read -p "IMAP username (your email address): " EMAIL_IMAP_USER
+            read -s -p "IMAP app password: " EMAIL_IMAP_PASSWORD
+            echo ""
+            read -p "IMAP folder to poll [INBOX]: " input_folder
+            EMAIL_FOLDER="${input_folder:-INBOX}"
+        fi
+    fi
+
 fi
 
 # --- Validation ---
@@ -210,6 +234,24 @@ if [ -n "$TELEGRAM_USERID" ] && [ -z "$TELEGRAM_BOTTOKEN" ]; then
     exit 1
 fi
 
+# Email: all three required fields must be provided together
+EMAIL_FIELDS_SET=0
+[ -n "$EMAIL_IMAP_HOST" ] && EMAIL_FIELDS_SET=$((EMAIL_FIELDS_SET + 1))
+[ -n "$EMAIL_IMAP_USER" ] && EMAIL_FIELDS_SET=$((EMAIL_FIELDS_SET + 1))
+[ -n "$EMAIL_IMAP_PASSWORD" ] && EMAIL_FIELDS_SET=$((EMAIL_FIELDS_SET + 1))
+if [ "$EMAIL_FIELDS_SET" -gt 0 ] && [ "$EMAIL_FIELDS_SET" -lt 3 ]; then
+    echo "Error: --email-imap-host, --email-imap-user, and --email-imap-password must all be provided together."
+    exit 1
+fi
+# Email digest requires the scripts repo: the IMAP poller and prompt live in clamps-tools
+if [ "$EMAIL_FIELDS_SET" -eq 3 ] && [ -z "$SCRIPTS_REPO" ]; then
+    echo "Error: --scripts-repo is required when email digest is configured."
+    echo "       The IMAP poller and prompt (check-substack-email.py, substack-prompt.txt)"
+    echo "       are deployed via clamps-tools, not directly by Ansible."
+    exit 1
+fi
+if [ -z "$EMAIL_FOLDER" ]; then EMAIL_FOLDER="INBOX"; fi
+
 # --- Execution ---
 
 echo ""
@@ -239,6 +281,11 @@ if [ -n "$SCRIPTS_REPO" ]; then
     echo "Scripts:   $SCRIPTS_REPO (r/o deploy key)"
 else
     echo "Scripts:   not configured"
+fi
+if [ -n "$EMAIL_IMAP_HOST" ]; then
+    echo "Email:     $EMAIL_IMAP_USER @ $EMAIL_IMAP_HOST (folder: $EMAIL_FOLDER)"
+else
+    echo "Email:     not configured"
 fi
 echo "----------------------------------------"
 
@@ -291,8 +338,12 @@ print(json.dumps({
     'brave_key':         sys.argv[7],
     'lastfm_api_key':    sys.argv[8],
     'lastfm_username':   sys.argv[9],
-    'scripts_repo_slug': sys.argv[10],
-}))" "$LLM_PROVIDER" "$LLM_MODEL" "$LLM_URL" "$LLM_KEY" "$TELEGRAM_USERID" "$TELEGRAM_BOTTOKEN" "$BRAVE_KEY" "$LASTFM_KEY" "$LASTFM_USERNAME" "$SCRIPTS_REPO")
+    'scripts_repo_slug':   sys.argv[10],
+    'email_imap_host':     sys.argv[11],
+    'email_imap_user':     sys.argv[12],
+    'email_imap_password': sys.argv[13],
+    'email_imap_folder':   sys.argv[14],
+}))" "$LLM_PROVIDER" "$LLM_MODEL" "$LLM_URL" "$LLM_KEY" "$TELEGRAM_USERID" "$TELEGRAM_BOTTOKEN" "$BRAVE_KEY" "$LASTFM_KEY" "$LASTFM_USERNAME" "$SCRIPTS_REPO" "$EMAIL_IMAP_HOST" "$EMAIL_IMAP_USER" "$EMAIL_IMAP_PASSWORD" "$EMAIL_FOLDER")
 
 # Run Playbook
 ansible-playbook -i "$TEMP_INVENTORY" playbook-tier2.yml $ANSIBLE_ARGS \

@@ -54,6 +54,13 @@ Automated Ansible deployment for hardened OpenClaw AI agents in two tiers:
 # With scripts repo (clones clamps-tools, sets up deploy key + daily pull)
 ./deploy-tier2.sh -t <IP> -p anthropic -m claude-sonnet-4-5 -k <API_KEY> \
   --scripts-repo user/clamps-tools
+
+# With Substack email digest (hourly IMAP poll → agent summarises new newsletters)
+./deploy-tier2.sh -t <IP> -p anthropic -m claude-sonnet-4-5 -k <API_KEY> \
+  --email-imap-host imap.gmail.com \
+  --email-imap-user you@gmail.com \
+  --email-imap-password <APP_PASSWORD> \
+  --email-folder INBOX
 ```
 
 > **Bootstrapping sequence for `--scripts-repo`:** On first deploy Ansible generates an
@@ -87,7 +94,7 @@ OpenClaw runs as a plain systemd service under the `openclaw` user. No container
 #### Task Flow (roles/tier2-setup/tasks/)
 - `main.yml` — OS detection (Debian/Ubuntu only), includes other task files in order: `debian-system.yml` → `install.yml` → `security.yml`
 - `debian-system.yml` — Package install, user creation, Tailscale auth
-- `install.yml` — Node.js 22 via NodeSource (with version guard), openclaw npm install, directory structure, gateway token generation, systemd service, doctor fix, health check, **CLI device pairing bootstrap**, Tailscale Serve HTTPS, scripts repo SSH deploy key + clone/pull, `scripts-config.env` render, cron jobs (daily pull, weekly audit, hourly Last.fm sync, daily band check, weekly bandcheck corpus refresh)
+- `install.yml` — Node.js 22 via NodeSource (with version guard), openclaw npm install, directory structure, gateway token generation, systemd service, doctor fix, health check, Tailscale Serve HTTPS, scripts repo SSH deploy key + clone/pull, `scripts-config.env` render, cron jobs (daily pull, weekly audit, hourly Last.fm sync, daily band check, weekly bandcheck corpus refresh)
 - `security.yml` — UFW firewall rules, Fail2Ban, SSH hardening. Runs **last** so a failed install does not lock out root SSH.
 
 #### Task Order Note
@@ -125,6 +132,9 @@ Tier 2: Gateway token generated with `openssl rand -hex 24` (must be 48-char hex
 - **`delegate_to: localhost` + `become: false`:** Any task delegated to localhost must explicitly set `become: false` to override the play-level `become: true`, otherwise Ansible tries to `sudo` on the local machine and fails if no password is available.
 - **OpenClaw cron (jobs.json):** Agent-integrated jobs (e.g. Last.fm sync) live in `~/.openclaw/cron/jobs.json`, not the system crontab. Manage them with an idempotent Python `shell` task: read the file, remove the entry by `jobId`, re-insert if enabled, write atomically with `os.replace()`. Use `changed_when` on stdout and `notify: Restart OpenClaw` — the gateway reads jobs.json at startup so a restart is required to pick up changes. Set `delivery: {mode: none}` to suppress the default isolated-job summary announcement for background data tasks. Each job entry must include both `id` and `jobId` set to the same value — the CLI cron list errors if `id` is absent.
 - **Commit style:** Use conventional commits with scope, e.g. `fix(litellm):`, `feat(tier2):`, `security(ssh):`.
+- **Substack email digest (Phase 9f):** Gated on `email_imap_host | default('') | length > 0`. Requires `--scripts-repo` (enforced in `deploy-tier2.sh`). Fetch and digest are split: a **system cron** runs `run-substack-check.sh` hourly (no agent) and appends new emails to `~/.openclaw/email-state/undigested.json`; two **OpenClaw cron jobs** at 12:45 and 19:45 server time (= 11:45 and 18:45 Berlin — server is Finland UTC+2/+3, offset is constant year-round) run an agent that calls `run-substack-digest.sh` to read+clear `undigested.json` and send the digest. The Python task also removes the legacy `substack-email-digest` job ID if present. `processed.json` tracks all fetched Message-IDs for deduplication; `undigested.json` accumulates emails between digest runs.
+- **Substack detection:** Primary signal is `List-Unsubscribe` header containing `substack.com` — survives newsletter migrations to custom sender domains while the Substack mailer backend remains. Sender header and From address are secondary fallbacks.
+- **deploy-tier2.sh extra-vars format:** positional args now extend to `sys.argv[14]` — `[11]`=`email_imap_host`, `[12]`=`email_imap_user`, `[13]`=`email_imap_password`, `[14]`=`email_imap_folder`.
 
 ## openclaw.json Schema Notes (Tier 2)
 
@@ -145,24 +155,13 @@ Hard-won constraints from live deployment — openclaw doctor/validator enforces
 - **Telegram requires both `userid` and `bottoken`** — The template condition checks both. If only one is set, the block falls back to `{ "dmPolicy": "pairing" }`. Passing only one via CLI flags is caught by validation in `deploy-tier2.sh` before the playbook runs.
 - **MiniMax provider** — Must use `api: "anthropic-messages"` with `baseUrl: "https://api.minimax.io/anthropic"`. Do **not** use `openai-completions` against MiniMax's `/v1` endpoint — it does not handle tool schemas correctly and causes models to emit empty tool calls (`tool= toolCallId=`), crashing every agent run. Do **not** include an inline `apiKey` in the MiniMax provider block; use `auth.profiles` instead.
 - **Semantic memory** — openclaw auto-detects embedding providers (OpenAI, Gemini, Voyage, or local GGUF model) and falls back to BM25-only if none are available. Do not explicitly disable it.
+- **`gateway.controlUi.allowedOrigins`** — Entries must match the browser's `Origin` header exactly. For HTTPS URLs the port is implicit (443) and must be omitted — `https://host.ts.net` not `https://host.ts.net:18789`. The playbook fetches the Tailscale self DNS name (`tailscale status --json` → `Self.DNSName`) before deploying `openclaw.json` and adds it as `tailscale_self_hostname`. Browser pairing (via the dashboard) is done once per browser manually post-deploy and persists across re-deploys as long as `paired.json` is not cleared.
 
-## openclaw Device Pairing (Tier 2 Headless Bootstrap)
+## openclaw Device Pairing (Tier 2)
 
-openclaw has two separate auth layers that are easy to conflate:
+The CLI authenticates via `~/.openclaw/identity/device-auth.json` — a token-based credential generated by `openclaw doctor --fix` on first deploy. No headless bootstrap is needed; Phase 6 (doctor fix) handles CLI auth automatically.
 
-1. **Gateway auth token** (`gateway.auth.token`) — Authenticates the browser dashboard WebSocket (controlUI). Set `gateway.remote.token` client-side for the CLI to use this token.
-2. **Device pairing** — Separate per-device asymmetric key challenge. Required for CLI connections regardless of gateway token. `dangerouslyDisableDeviceAuth` only bypasses this for the controlUI, not the CLI.
-
-**`OPENCLAW_GATEWAY_TOKEN` env var does not bypass device pairing for the CLI.** It is only for the agent API, not the control plane WebSocket.
-
-**Headless bootstrap flow** (automated in `install.yml` Phase 7b):
-1. Delete `~/.openclaw/identity/device.json` if it exists — this is critical. If a stale identity from a previous deploy is present, the CLI detects it and generates a `clientId: "gateway-client"` repair entry instead of a `clientId: "cli"` pending entry, which the bootstrap cannot approve.
-2. Run any CLI command — it fails but generates a fresh `identity/device.json` (Ed25519 key pair) and writes a `clientId: "cli"` pending entry to `~/.openclaw/devices/pending.json`
-3. Move the CLI's pending entry into `~/.openclaw/devices/paired.json` (keyed by `deviceId`, drop `requestId`, add `pairedAt`)
-4. Restart the gateway — it reads `paired.json` on startup and trusts the CLI's public key
-5. CLI connects using private key challenge from `identity/device.json`
-
-Browser pairing is done manually post-deploy: open the dashboard URL from `openclaw dashboard --no-open` via SSH tunnel, the browser submits a pending request, approve with `openclaw nodes approve <requestId>` from the now-working CLI.
+Browser pairing is done manually post-deploy: open the dashboard URL from `openclaw dashboard --no-open` via SSH tunnel, the browser submits a pending request, approve with `openclaw devices approve <requestId>` from the CLI.
 
 ## openclaw doctor --fix and the User-Level Service Conflict
 
