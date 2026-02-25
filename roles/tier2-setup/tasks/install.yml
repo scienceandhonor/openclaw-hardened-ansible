@@ -538,10 +538,15 @@
   notify: Restart OpenClaw
 
 # ── Phase 9f: Substack Email Digest ──────────────────────────────────────────
-# The IMAP poller (check-substack-email.py), bash wrapper (run-substack-check.sh),
-# and prompt (substack-prompt.txt) live in clamps-tools and are deployed via the
-# scripts repo (Phase 9a-9c). --scripts-repo is therefore required when email is
-# configured; deploy-tier2.sh enforces this before the playbook runs.
+# Fetch and digest are split into separate jobs:
+#   - Hourly system cron: runs the IMAP poller, appends new emails to
+#     email-state/undigested.json (no agent involved).
+#   - OpenClaw cron at 12:45 and 19:45 server time (= 11:45 and 18:45 Berlin,
+#     server is in Finland = UTC+2/+3, Berlin = UTC+1/+2, offset is constant):
+#     agent reads + clears undigested.json and sends the digest via Telegram.
+#
+# Scripts live in clamps-tools (Phase 9a-9c). --scripts-repo is required when
+# email is configured; deploy-tier2.sh enforces this before the playbook runs.
 
 - name: Create email state directory
   file:
@@ -552,15 +557,26 @@
     mode: '0700'
   when: email_imap_host | default('') | length > 0
 
-- name: Configure Substack email digest in OpenClaw cron
+- name: Hourly Substack email fetch (system cron, no agent)
+  cron:
+    name: "Substack email fetch"
+    minute: "0"
+    hour: "*"
+    job: "~/scripts/run-substack-check.sh >> ~/.openclaw/email-state/fetch.log 2>&1"
+    user: "{{ openclaw_user }}"
+    state: "{{ 'present' if email_imap_host | default('') | length > 0 else 'absent' }}"
+
+- name: Configure Substack digest jobs in OpenClaw cron
   shell: |
     python3 - <<'PYEOF'
     import json, os
 
     jobs_path = os.environ['HOME'] + '/.openclaw/cron/jobs.json'
-    job_id    = 'substack-email-digest'
     enable    = os.environ.get('SUBSTACK_ENABLED') == '1'
     tg_on     = os.environ.get('TELEGRAM_ENABLED') == '1'
+
+    # job IDs managed by this task (also cleans up the old combined job)
+    managed = {'substack-email-digest', 'substack-digest-morning', 'substack-digest-evening'}
 
     os.makedirs(os.path.dirname(jobs_path), exist_ok=True)
 
@@ -572,23 +588,26 @@
 
     before = json.dumps(store, sort_keys=True)
 
-    store['jobs'] = [j for j in store['jobs'] if j.get('jobId') != job_id]
+    store['jobs'] = [j for j in store['jobs'] if j.get('jobId') not in managed]
 
     if enable:
-        store['jobs'].append({
-            'id':            job_id,
-            'jobId':         job_id,
-            'name':          'Substack email digest',
-            'enabled':       True,
-            'schedule':      {'kind': 'cron', 'expr': '0 * * * *', 'staggerMs': 0},
-            'sessionTarget': 'isolated',
-            'wakeMode':      'now',
-            'payload':       {
-                'kind':    'agentTurn',
-                'message': 'Run ~/scripts/run-substack-check.sh then follow the instructions in ~/scripts/substack-prompt.txt'
-            },
-            'delivery':      {'mode': 'channel' if tg_on else 'none'}
-        })
+        delivery = {'mode': 'channel' if tg_on else 'none'}
+        message  = 'Run ~/scripts/run-substack-digest.sh then follow the instructions in ~/scripts/substack-prompt.txt'
+        for job_id, name, expr in [
+            ('substack-digest-morning', 'Substack digest (morning)', '45 12 * * *'),
+            ('substack-digest-evening', 'Substack digest (evening)', '45 19 * * *'),
+        ]:
+            store['jobs'].append({
+                'id':            job_id,
+                'jobId':         job_id,
+                'name':          name,
+                'enabled':       True,
+                'schedule':      {'kind': 'cron', 'expr': expr, 'staggerMs': 0},
+                'sessionTarget': 'isolated',
+                'wakeMode':      'now',
+                'payload':       {'kind': 'agentTurn', 'message': message},
+                'delivery':      delivery,
+            })
 
     after = json.dumps(store, sort_keys=True)
 
