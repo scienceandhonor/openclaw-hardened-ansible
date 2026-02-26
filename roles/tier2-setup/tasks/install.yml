@@ -158,6 +158,7 @@
       WorkingDirectory={{ openclaw_home }}
       Environment=HOME={{ openclaw_home }}
       Environment=OPENCLAW_GATEWAY_TOKEN={{ gateway_token }}
+      Environment=NODE_OPTIONS=--no-network-family-autoselection
       ExecStart={{ openclaw_bin.stdout }} gateway run
       Restart=on-failure
       RestartSec=15
