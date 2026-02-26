@@ -594,8 +594,8 @@
         delivery = {'mode': 'channel' if tg_on else 'none'}
         message  = 'Run ~/scripts/run-substack-digest.sh then follow the instructions in ~/scripts/substack-prompt.txt'
         for job_id, name, expr in [
-            ('substack-digest-morning', 'Substack digest (morning)', '45 12 * * *'),
-            ('substack-digest-evening', 'Substack digest (evening)', '45 19 * * *'),
+            ('substack-digest-morning', 'Substack digest (morning)', '45 6 * * *'),
+            ('substack-digest-evening', 'Substack digest (evening)', '45 10 * * *'),
         ]:
             store['jobs'].append({
                 'id':            job_id,
