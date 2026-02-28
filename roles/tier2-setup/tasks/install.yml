@@ -503,6 +503,7 @@
     store['jobs'] = [j for j in store['jobs'] if j.get('jobId') != job_id]
 
     if enable:
+        tg_on = os.environ.get('TELEGRAM_ENABLED') == '1'
         store['jobs'].append({
             'id':            job_id,
             'jobId':         job_id,
@@ -515,7 +516,7 @@
                 'kind':    'agentTurn',
                 'message': 'Run ~/scripts/check-bands.sh then follow the instructions in ~/scripts/bandcheck-prompt.txt'
             },
-            'delivery':      {'mode': 'none'}
+            'delivery':      {'mode': 'channel' if tg_on else 'none'}
         })
 
     after = json.dumps(store, sort_keys=True)
@@ -533,6 +534,7 @@
   environment:
     HOME: "{{ openclaw_home }}"
     BANDCHECK_ENABLED: "{{ '1' if (scripts_repo_slug | default('') | length > 0 and lastfm_api_key | default('') | length > 0) else '0' }}"
+    TELEGRAM_ENABLED: "{{ '1' if telegram_userid | default('') | length > 0 else '0' }}"
   register: bandcheck_cron_result
   changed_when: "'changed' in bandcheck_cron_result.stdout"
   when: scripts_repo_slug | default('') | length > 0
@@ -628,6 +630,69 @@
     TELEGRAM_ENABLED: "{{ '1' if telegram_userid | default('') | length > 0 else '0' }}"
   register: substack_cron_result
   changed_when: "'changed' in substack_cron_result.stdout"
+  notify: Restart OpenClaw
+
+# ── Phase 9g: Daily Stoic Quote ──────────────────────────────────────────────
+# Isolated agent job at 6:45 UTC (= 7:45 Berlin in winter) — runs daily-stoic.py
+# and delivers the quote to the Telegram channel.
+
+- name: Configure daily stoic quote in OpenClaw cron
+  shell: |
+    python3 - <<'PYEOF'
+    import json, os
+
+    jobs_path = os.environ['HOME'] + '/.openclaw/cron/jobs.json'
+    job_id    = 'job-daily-stoic'
+    enable    = os.environ.get('STOIC_ENABLED') == '1'
+    tg_on     = os.environ.get('TELEGRAM_ENABLED') == '1'
+
+    os.makedirs(os.path.dirname(jobs_path), exist_ok=True)
+
+    try:
+        with open(jobs_path) as f:
+            store = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        store = {'version': 1, 'jobs': []}
+
+    before = json.dumps(store, sort_keys=True)
+
+    store['jobs'] = [j for j in store['jobs'] if j.get('jobId') != job_id]
+
+    if enable:
+        store['jobs'].append({
+            'id':            job_id,
+            'jobId':         job_id,
+            'name':          'Daily stoic quote',
+            'enabled':       True,
+            'schedule':      {'kind': 'cron', 'expr': '45 6 * * *', 'staggerMs': 0},
+            'sessionTarget': 'isolated',
+            'wakeMode':      'now',
+            'payload':       {
+                'kind':    'agentTurn',
+                'message': 'Run ~/scripts/daily-stoic.py and reply with only its output.'
+            },
+            'delivery':      {'mode': 'channel' if tg_on else 'none'}
+        })
+
+    after = json.dumps(store, sort_keys=True)
+
+    if before != after:
+        tmp = jobs_path + '.tmp'
+        with open(tmp, 'w') as f:
+            json.dump(store, f, indent=2)
+        os.replace(tmp, jobs_path)
+        print('changed')
+    else:
+        print('ok')
+    PYEOF
+  become_user: "{{ openclaw_user }}"
+  environment:
+    HOME: "{{ openclaw_home }}"
+    STOIC_ENABLED: "{{ '1' if scripts_repo_slug | default('') | length > 0 else '0' }}"
+    TELEGRAM_ENABLED: "{{ '1' if telegram_userid | default('') | length > 0 else '0' }}"
+  register: stoic_cron_result
+  changed_when: "'changed' in stoic_cron_result.stdout"
+  when: scripts_repo_slug | default('') | length > 0
   notify: Restart OpenClaw
 
 # ── Phase 10: Security Audit ──────────────────────────────────────────────────
