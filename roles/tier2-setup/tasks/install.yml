@@ -695,6 +695,68 @@
   when: scripts_repo_slug | default('') | length > 0
   notify: Restart OpenClaw
 
+# ── Phase 9h: Weekly MiniMax summary reminder ────────────────────────────────
+# Every Friday at 18:00 UTC (= 19:00 Berlin winter / 20:00 Berlin summer) the agent
+# sends a Telegram reminder to run /minimax-analysis. Gated on Telegram being configured;
+# does not require the scripts repo.
+
+- name: Configure weekly MiniMax summary reminder in OpenClaw cron
+  shell: |
+    python3 - <<'PYEOF'
+    import json, os
+
+    jobs_path = os.environ['HOME'] + '/.openclaw/cron/jobs.json'
+    job_id    = 'job-minimax-reminder'
+    tg_on     = os.environ.get('TELEGRAM_ENABLED') == '1'
+
+    os.makedirs(os.path.dirname(jobs_path), exist_ok=True)
+
+    try:
+        with open(jobs_path) as f:
+            store = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        store = {'version': 1, 'jobs': []}
+
+    before = json.dumps(store, sort_keys=True)
+
+    store['jobs'] = [j for j in store['jobs'] if j.get('jobId') != job_id]
+
+    if tg_on:
+        store['jobs'].append({
+            'id':            job_id,
+            'jobId':         job_id,
+            'name':          'MiniMax weekly summary reminder',
+            'enabled':       True,
+            'schedule':      {'kind': 'cron', 'expr': '0 18 * * 5', 'staggerMs': 0},
+            'sessionTarget': 'isolated',
+            'wakeMode':      'now',
+            'payload':       {
+                'kind':    'agentTurn',
+                'message': "Remind the user: it's Friday evening — time to run /minimax-analysis to generate the weekly MiniMax API usage report. Send only this reminder, nothing else."
+            },
+            'delivery':      {'mode': 'channel'}
+        })
+
+    after = json.dumps(store, sort_keys=True)
+
+    if before != after:
+        tmp = jobs_path + '.tmp'
+        with open(tmp, 'w') as f:
+            json.dump(store, f, indent=2)
+        os.replace(tmp, jobs_path)
+        print('changed')
+    else:
+        print('ok')
+    PYEOF
+  become_user: "{{ openclaw_user }}"
+  environment:
+    HOME: "{{ openclaw_home }}"
+    TELEGRAM_ENABLED: "{{ '1' if telegram_userid | default('') | length > 0 else '0' }}"
+  register: minimax_reminder_result
+  changed_when: "'changed' in minimax_reminder_result.stdout"
+  when: telegram_userid | default('') | length > 0
+  notify: Restart OpenClaw
+
 # ── Phase 10: Security Audit ──────────────────────────────────────────────────
 
 - name: Run initial security audit
