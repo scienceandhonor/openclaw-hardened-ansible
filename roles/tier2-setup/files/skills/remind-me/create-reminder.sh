@@ -8,6 +8,14 @@
 
 set -euo pipefail
 
+# Load deployment config for TELEGRAM_USERID
+[[ -f "$HOME/scripts-config.env" ]] && source "$HOME/scripts-config.env"
+TELEGRAM_USERID="${TELEGRAM_USERID:-}"
+if [[ -z "$TELEGRAM_USERID" ]]; then
+    echo "Error: TELEGRAM_USERID not set in ~/scripts-config.env" >&2
+    exit 1
+fi
+
 if [[ $# -lt 2 ]]; then
     echo "Usage: $0 \"<message>\" \"<time expression>\"" >&2
     exit 1
@@ -33,7 +41,7 @@ fi
 
 # Schedule the one-time job via the OpenClaw CLI.
 # --at accepts an ISO 8601 timestamp. One-time jobs auto-remove after firing.
-result=$(openclaw cron add --at "$iso_time" --message "$msg" --delivery channel 2>&1) || {
+result=$(openclaw cron add --at "$iso_time" --message "$msg" --announce --channel telegram --to "$TELEGRAM_USERID" 2>&1) || {
     echo "Error: openclaw cron add failed: $result" >&2
     exit 1
 }

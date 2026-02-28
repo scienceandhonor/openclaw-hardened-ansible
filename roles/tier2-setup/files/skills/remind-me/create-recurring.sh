@@ -7,6 +7,14 @@
 
 set -euo pipefail
 
+# Load deployment config for TELEGRAM_USERID
+[[ -f "$HOME/scripts-config.env" ]] && source "$HOME/scripts-config.env"
+TELEGRAM_USERID="${TELEGRAM_USERID:-}"
+if [[ -z "$TELEGRAM_USERID" ]]; then
+    echo "Error: TELEGRAM_USERID not set in ~/scripts-config.env" >&2
+    exit 1
+fi
+
 if [[ $# -lt 2 ]]; then
     echo "Usage: $0 \"<message>\" \"<cron expression>\"" >&2
     exit 1
@@ -24,7 +32,7 @@ fi
 
 # Schedule the recurring job via the OpenClaw CLI.
 # --cron accepts a standard 5-field cron expression.
-result=$(openclaw cron add --cron "$cron_expr" --message "$msg" --delivery channel 2>&1) || {
+result=$(openclaw cron add --cron "$cron_expr" --message "$msg" --announce --channel telegram --to "$TELEGRAM_USERID" 2>&1) || {
     echo "Error: openclaw cron add failed: $result" >&2
     exit 1
 }

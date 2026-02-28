@@ -516,7 +516,7 @@
                 'kind':    'agentTurn',
                 'message': 'Run ~/scripts/check-bands.sh then follow the instructions in ~/scripts/bandcheck-prompt.txt'
             },
-            'delivery':      {'mode': 'channel' if tg_on else 'none'}
+            'delivery':      {'mode': 'announce', 'channel': 'telegram', 'to': os.environ.get('TELEGRAM_USERID', '')} if tg_on else {'mode': 'none'}
         })
 
     after = json.dumps(store, sort_keys=True)
@@ -535,6 +535,7 @@
     HOME: "{{ openclaw_home }}"
     BANDCHECK_ENABLED: "{{ '1' if (scripts_repo_slug | default('') | length > 0 and lastfm_api_key | default('') | length > 0) else '0' }}"
     TELEGRAM_ENABLED: "{{ '1' if telegram_userid | default('') | length > 0 else '0' }}"
+    TELEGRAM_USERID: "{{ telegram_userid | default('') }}"
   register: bandcheck_cron_result
   changed_when: "'changed' in bandcheck_cron_result.stdout"
   when: scripts_repo_slug | default('') | length > 0
@@ -594,7 +595,7 @@
     store['jobs'] = [j for j in store['jobs'] if j.get('jobId') not in managed]
 
     if enable:
-        delivery = {'mode': 'channel' if tg_on else 'none'}
+        delivery = {'mode': 'announce', 'channel': 'telegram', 'to': os.environ.get('TELEGRAM_USERID', '')} if tg_on else {'mode': 'none'}
         message  = 'Run ~/scripts/run-substack-digest.sh then follow the instructions in ~/scripts/substack-prompt.txt'
         for job_id, name, expr in [
             ('substack-digest-morning', 'Substack digest (morning)', '45 6 * * *'),
@@ -628,6 +629,7 @@
     HOME: "{{ openclaw_home }}"
     SUBSTACK_ENABLED: "{{ '1' if email_imap_host | default('') | length > 0 else '0' }}"
     TELEGRAM_ENABLED: "{{ '1' if telegram_userid | default('') | length > 0 else '0' }}"
+    TELEGRAM_USERID: "{{ telegram_userid | default('') }}"
   register: substack_cron_result
   changed_when: "'changed' in substack_cron_result.stdout"
   notify: Restart OpenClaw
@@ -671,7 +673,7 @@
                 'kind':    'agentTurn',
                 'message': 'Run ~/scripts/daily-stoic.py and reply with only its output.'
             },
-            'delivery':      {'mode': 'channel' if tg_on else 'none'}
+            'delivery':      {'mode': 'announce', 'channel': 'telegram', 'to': os.environ.get('TELEGRAM_USERID', '')} if tg_on else {'mode': 'none'}
         })
 
     after = json.dumps(store, sort_keys=True)
@@ -690,6 +692,7 @@
     HOME: "{{ openclaw_home }}"
     STOIC_ENABLED: "{{ '1' if scripts_repo_slug | default('') | length > 0 else '0' }}"
     TELEGRAM_ENABLED: "{{ '1' if telegram_userid | default('') | length > 0 else '0' }}"
+    TELEGRAM_USERID: "{{ telegram_userid | default('') }}"
   register: stoic_cron_result
   changed_when: "'changed' in stoic_cron_result.stdout"
   when: scripts_repo_slug | default('') | length > 0
@@ -734,7 +737,7 @@
                 'kind':    'agentTurn',
                 'message': "Remind the user: it's Friday evening — time to run /minimax-analysis to generate the weekly MiniMax API usage report. Send only this reminder, nothing else."
             },
-            'delivery':      {'mode': 'channel'}
+            'delivery':      {'mode': 'announce', 'channel': 'telegram', 'to': os.environ.get('TELEGRAM_USERID', '')}
         })
 
     after = json.dumps(store, sort_keys=True)
@@ -752,6 +755,7 @@
   environment:
     HOME: "{{ openclaw_home }}"
     TELEGRAM_ENABLED: "{{ '1' if telegram_userid | default('') | length > 0 else '0' }}"
+    TELEGRAM_USERID: "{{ telegram_userid | default('') }}"
   register: minimax_reminder_result
   changed_when: "'changed' in minimax_reminder_result.stdout"
   when: telegram_userid | default('') | length > 0
