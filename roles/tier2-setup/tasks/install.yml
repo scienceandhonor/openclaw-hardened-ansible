@@ -757,6 +757,27 @@
   when: telegram_userid | default('') | length > 0
   notify: Restart OpenClaw
 
+# ── Phase 9i: remind-me skill ────────────────────────────────────────────────
+
+- name: Create remind-me skill directory
+  file:
+    path: "{{ openclaw_home }}/clawd/skills/remind-me"
+    state: directory
+    owner: "{{ openclaw_user }}"
+    group: "{{ openclaw_user }}"
+    mode: '0700'
+
+- name: Deploy remind-me skill files
+  copy:
+    src: "skills/remind-me/{{ item }}"
+    dest: "{{ openclaw_home }}/clawd/skills/remind-me/{{ item }}"
+    owner: "{{ openclaw_user }}"
+    mode: '0755'
+  loop:
+    - SKILL.md
+    - create-reminder.sh
+    - create-recurring.sh
+
 # ── Phase 10: Security Audit ──────────────────────────────────────────────────
 
 - name: Run initial security audit
