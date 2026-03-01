@@ -59,7 +59,6 @@
   loop:
     - { path: "{{ openclaw_home }}/.openclaw",                          mode: '0700' }
     - { path: "{{ openclaw_home }}/.openclaw/credentials",              mode: '0700' }
-    - { path: "{{ openclaw_home }}/.openclaw/timeline-state",           mode: '0700' }
     - { path: "{{ openclaw_home }}/workspace",                          mode: '0755' }
     - { path: "{{ openclaw_home }}/clawd",                              mode: '0700' }
 
@@ -835,7 +834,7 @@
     name: "xurl timeline fetch"
     minute: "0"
     hour: "*"
-    job: "~/scripts/fetch-xurl-timeline.sh >> ~/.openclaw/timeline-state/fetch.log 2>&1; tail -c 524288 ~/.openclaw/timeline-state/fetch.log > ~/.openclaw/timeline-state/fetch.log.tmp && mv ~/.openclaw/timeline-state/fetch.log.tmp ~/.openclaw/timeline-state/fetch.log"
+    job: "~/scripts/fetch-xurl-timeline.sh >> ~/timeline-state/fetch.log 2>&1; tail -c 524288 ~/timeline-state/fetch.log > ~/timeline-state/fetch.log.tmp && mv ~/timeline-state/fetch.log.tmp ~/timeline-state/fetch.log"
     user: "{{ openclaw_user }}"
     state: "{{ 'present' if xurl_credentials is defined else 'absent' }}"
 
