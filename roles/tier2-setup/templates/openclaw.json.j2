@@ -167,6 +167,12 @@
     "telegram": { "dmPolicy": "pairing" }
 {% endif %}
   },
+{% if telegram_bottoken | default('') | length > 0 and rp_telegram_bottoken | default('') | length > 0 %}
+  "bindings": [
+    { "agentId": "main",           "match": { "channel": "telegram", "accountId": "default" } },
+    { "agentId": "sirshellspeare", "match": { "channel": "telegram", "accountId": "sirshellspeare" } }
+  ],
+{% endif %}
   "agents": {
     "defaults": {
       "model": {
