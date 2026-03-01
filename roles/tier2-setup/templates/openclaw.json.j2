@@ -85,10 +85,10 @@
             "contextWindow": 200000,
             "maxTokens": 8192,
             "cost": {
-              "input": 15,
-              "output": 60,
-              "cacheRead": 2,
-              "cacheWrite": 10
+              "input": 0.3,
+              "output": 1.2,
+              "cacheRead": 0.03,
+              "cacheWrite": 0.375
             }
           },
           {
@@ -97,7 +97,13 @@
             "reasoning": false,
             "input": ["text"],
             "contextWindow": 200000,
-            "maxTokens": 8192
+            "maxTokens": 8192,
+            "cost": {
+              "input": 0.3,
+              "output": 1.2,
+              "cacheRead": 0.03,
+              "cacheWrite": 0.375
+            }
           }
         ]
       }
@@ -179,7 +185,19 @@
 {% endif %}
           ]
         }
-      }
+      }{% if llm_provider == 'minimax' %},
+      {
+        "id": "pincermove",
+        "name": "ThePincerMove",
+        "workspace": "{{ openclaw_home }}/workspace-pincermove",
+        "model": {
+          "primary": "minimax/MiniMax-M2.1",
+          "fallbacks": []
+        },
+        "tools": {
+          "deny": ["write", "edit", "apply_patch", "browser", "process"]
+        }
+      }{% endif %}
     ]
   }{% if brave_key | default('') | length > 0 %},
   "tools": {

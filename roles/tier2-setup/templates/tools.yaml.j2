@@ -19,6 +19,9 @@ tools:
       - "{{ openclaw_home }}/workspace"
       - "{{ openclaw_home }}/clawd"
       - "{{ openclaw_home }}/scripts"
+{% if llm_provider == 'minimax' %}
+      - "{{ openclaw_home }}/workspace-pincermove"
+{% endif %}
     deniedPaths:
       - "{{ openclaw_home }}/.ssh"
       - "{{ openclaw_home }}/.openclaw/credentials"
