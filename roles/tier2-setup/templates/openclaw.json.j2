@@ -104,6 +104,15 @@
               "cacheRead": 0.03,
               "cacheWrite": 0.375
             }
+          },
+          {
+            "id": "M2-her",
+            "name": "M2-her",
+            "reasoning": false,
+            "input": ["text"],
+            "contextWindow": 65536,
+            "maxTokens": 2048,
+            "cost": { "input": 0.0, "output": 0.0 }
           }
         ]
       }
@@ -147,7 +156,11 @@
         "default": {
           "name": "RightClamp",
           "botToken": "{{ telegram_bottoken }}"
-        }
+        }{% if rp_telegram_bottoken | default('') | length > 0 %},
+        "sirshellspeare": {
+          "name": "SirShellspeare",
+          "botToken": "{{ rp_telegram_bottoken }}"
+        }{% endif %}
       }
     }
 {% else %}
@@ -197,7 +210,19 @@
         "tools": {
           "deny": ["write", "edit", "apply_patch", "browser", "process"]
         }
-      }{% endif %}
+      }{% if rp_telegram_bottoken | default('') | length > 0 %},
+      {
+        "id": "sirshellspeare",
+        "name": "SirShellspeare",
+        "workspace": "{{ openclaw_home }}/workspace-rp",
+        "model": {
+          "primary": "minimax/{{ llm_model }}",
+          "fallbacks": []
+        },
+        "tools": {
+          "deny": ["browser", "process"]
+        }
+      }{% endif %}{% endif %}
     ]
   }{% if brave_key | default('') | length > 0 %},
   "tools": {
