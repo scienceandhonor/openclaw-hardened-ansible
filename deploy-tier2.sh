@@ -25,6 +25,8 @@ show_help() {
     echo "  --email-imap-user U   IMAP login address"
     echo "  --email-imap-password P  IMAP app password"
     echo "  --email-folder F      IMAP folder/label to poll (default: INBOX)"
+    echo "  --vault-file FILE     Ansible Vault-encrypted vars file (e.g. vault-xurl.yml)"
+    echo "  --vault-password PASS Vault password (for non-interactive deploys)"
     echo "  -h, --help            Show this help message"
     echo ""
     echo "Deploys OpenClaw Tier 2 (direct host, no containers) to an Ubuntu/Debian VPS."
@@ -51,6 +53,19 @@ EMAIL_IMAP_HOST=""
 EMAIL_IMAP_USER=""
 EMAIL_IMAP_PASSWORD=""
 EMAIL_FOLDER=""
+VAULT_FILE=""
+VAULT_PASSWORD=""
+
+# Normalize --flag=value into --flag value so both forms work
+_ARGS=()
+for _arg in "$@"; do
+    if [[ "$_arg" == --*=* ]]; then
+        _ARGS+=("${_arg%%=*}" "${_arg#*=}")
+    else
+        _ARGS+=("$_arg")
+    fi
+done
+set -- "${_ARGS[@]+"${_ARGS[@]}"}"
 
 # Parse Arguments
 while [[ "$#" -gt 0 ]]; do
@@ -74,6 +89,8 @@ while [[ "$#" -gt 0 ]]; do
         --email-imap-user) EMAIL_IMAP_USER="$2"; shift ;;
         --email-imap-password) EMAIL_IMAP_PASSWORD="$2"; shift ;;
         --email-folder) EMAIL_FOLDER="$2"; shift ;;
+        --vault-file) VAULT_FILE="$2"; shift ;;
+        --vault-password) VAULT_PASSWORD="$2"; shift ;;
         -h|--help) show_help; exit 0 ;;
         *) echo "Unknown parameter: $1"; exit 1 ;;
     esac
@@ -287,6 +304,9 @@ if [ -n "$EMAIL_IMAP_HOST" ]; then
 else
     echo "Email:     not configured"
 fi
+if [ -n "$VAULT_FILE" ]; then
+    echo "Vault:     $VAULT_FILE"
+fi
 echo "----------------------------------------"
 
 # Create temporary inventory
@@ -324,6 +344,16 @@ fi
 if [ -n "$SSH_KEY" ]; then
     ANSIBLE_ARGS="$ANSIBLE_ARGS --private-key=$SSH_KEY"
 fi
+TEMP_VAULT_PASS=""
+if [ -n "$VAULT_FILE" ]; then
+    if [ -n "$VAULT_PASSWORD" ]; then
+        TEMP_VAULT_PASS=$(mktemp)
+        printf '%s' "$VAULT_PASSWORD" > "$TEMP_VAULT_PASS"
+        ANSIBLE_ARGS="$ANSIBLE_ARGS --extra-vars @${VAULT_FILE} --vault-password-file=${TEMP_VAULT_PASS}"
+    else
+        ANSIBLE_ARGS="$ANSIBLE_ARGS --extra-vars @${VAULT_FILE} --ask-vault-pass"
+    fi
+fi
 
 # Build extra-vars as JSON so special characters (e.g. colons in bot tokens) are never misinterpreted
 EXTRA_VARS=$(python3 -c "
@@ -351,6 +381,7 @@ ansible-playbook -i "$TEMP_INVENTORY" playbook-tier2.yml $ANSIBLE_ARGS \
 
 # Cleanup
 rm "$TEMP_INVENTORY"
+[ -n "$TEMP_VAULT_PASS" ] && rm -f "$TEMP_VAULT_PASS"
 
 echo ""
 echo "✅ Tier 2 deployment finished."

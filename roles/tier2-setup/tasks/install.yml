@@ -42,6 +42,11 @@
   debug:
     msg: "openclaw installed at: {{ openclaw_bin.stdout }}"
 
+- name: Install xurl globally (as root → /usr/bin/xurl)
+  command: npm install -g @xdevplatform/xurl
+  register: xurl_install_result
+  changed_when: "'added' in xurl_install_result.stdout or 'updated' in xurl_install_result.stdout"
+
 # ── Phase 3: Directory Structure ─────────────────────────────────────────────
 
 - name: Create openclaw config and workspace directories
@@ -54,6 +59,7 @@
   loop:
     - { path: "{{ openclaw_home }}/.openclaw",                          mode: '0700' }
     - { path: "{{ openclaw_home }}/.openclaw/credentials",              mode: '0700' }
+    - { path: "{{ openclaw_home }}/.openclaw/timeline-state",           mode: '0700' }
     - { path: "{{ openclaw_home }}/workspace",                          mode: '0755' }
     - { path: "{{ openclaw_home }}/clawd",                              mode: '0700' }
 
@@ -87,6 +93,20 @@
     owner: "{{ openclaw_user }}"
     group: "{{ openclaw_user }}"
     mode: '0600'
+
+# ── Phase 4b: xurl Credentials ───────────────────────────────────────────────
+# xurl_credentials must be an Ansible Vault-encrypted variable containing the
+# contents of ~/.xurl (obtained by running `xurl auth` locally, never on the VPS).
+
+- name: Deploy xurl credentials
+  copy:
+    content: "{{ xurl_credentials }}"
+    dest: "{{ openclaw_home }}/.xurl"
+    owner: "{{ openclaw_user }}"
+    group: "{{ openclaw_user }}"
+    mode: "0600"
+  no_log: true
+  when: xurl_credentials is defined
 
 # ── Phase 5: Deploy Hardened Config Files ────────────────────────────────────
 
@@ -781,6 +801,103 @@
     - SKILL.md
     - create-reminder.sh
     - create-recurring.sh
+
+# ── Phase 9j: xurl skill ──────────────────────────────────────────────────────
+# Only deployed when xurl credentials are present — no point having the skill
+# if the tool is not authenticated.
+
+- name: Create xurl skill directory
+  file:
+    path: "{{ openclaw_home }}/clawd/skills/xurl"
+    state: directory
+    owner: "{{ openclaw_user }}"
+    group: "{{ openclaw_user }}"
+    mode: '0700'
+  when: xurl_credentials is defined
+
+- name: Deploy xurl skill file
+  copy:
+    src: "skills/xurl/SKILL.md"
+    dest: "{{ openclaw_home }}/clawd/skills/xurl/SKILL.md"
+    owner: "{{ openclaw_user }}"
+    mode: '0644'
+  when: xurl_credentials is defined
+
+# ── Phase 9k: xurl Timeline Digest ───────────────────────────────────────────
+# Fetch and digest are split:
+#   - Hourly system cron: runs fetch-xurl-timeline.sh (no agent), appends to
+#     timeline-state/undigested.json using since_id for deduplication.
+#   - Daily OpenClaw cron at 10:45 UTC: agent reads + clears undigested.json
+#     and sends digest via Telegram.
+
+- name: Hourly xurl timeline fetch (system cron, no agent)
+  cron:
+    name: "xurl timeline fetch"
+    minute: "0"
+    hour: "*"
+    job: "~/scripts/fetch-xurl-timeline.sh >> ~/.openclaw/timeline-state/fetch.log 2>&1; tail -c 524288 ~/.openclaw/timeline-state/fetch.log > ~/.openclaw/timeline-state/fetch.log.tmp && mv ~/.openclaw/timeline-state/fetch.log.tmp ~/.openclaw/timeline-state/fetch.log"
+    user: "{{ openclaw_user }}"
+    state: "{{ 'present' if xurl_credentials is defined else 'absent' }}"
+
+- name: Configure xurl timeline digest in OpenClaw cron
+  shell: |
+    python3 - <<'PYEOF'
+    import json, os
+
+    jobs_path = os.environ['HOME'] + '/.openclaw/cron/jobs.json'
+    job_id    = 'job-xurl-timeline-digest'
+    enable    = os.environ.get('XURL_ENABLED') == '1'
+    tg_on     = os.environ.get('TELEGRAM_ENABLED') == '1'
+
+    os.makedirs(os.path.dirname(jobs_path), exist_ok=True)
+
+    try:
+        with open(jobs_path) as f:
+            store = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        store = {'version': 1, 'jobs': []}
+
+    before = json.dumps(store, sort_keys=True)
+    store['jobs'] = [j for j in store['jobs'] if j.get('jobId') != job_id]
+
+    if enable:
+        delivery = {'mode': 'announce', 'channel': 'telegram', 'to': os.environ.get('TELEGRAM_USERID', '')} if tg_on else {'mode': 'none'}
+        store['jobs'].append({
+            'id':            job_id,
+            'jobId':         job_id,
+            'name':          'X timeline digest',
+            'enabled':       True,
+            'schedule':      {'kind': 'cron', 'expr': '45 10 * * *', 'staggerMs': 0},
+            'sessionTarget': 'isolated',
+            'wakeMode':      'now',
+            'payload':       {
+                'kind':    'agentTurn',
+                'message': "Run ~/scripts/run-xurl-digest.sh — if it outputs [], stop immediately without sending any message. Otherwise follow ~/scripts/xurl-timeline-prompt.txt"
+            },
+            'delivery': delivery,
+        })
+
+    after = json.dumps(store, sort_keys=True)
+
+    if before != after:
+        tmp = jobs_path + '.tmp'
+        with open(tmp, 'w') as f:
+            json.dump(store, f, indent=2)
+        os.replace(tmp, jobs_path)
+        print('changed')
+    else:
+        print('ok')
+    PYEOF
+  become_user: "{{ openclaw_user }}"
+  environment:
+    HOME: "{{ openclaw_home }}"
+    XURL_ENABLED: "{{ '1' if xurl_credentials is defined else '0' }}"
+    TELEGRAM_ENABLED: "{{ '1' if telegram_userid | default('') | length > 0 else '0' }}"
+    TELEGRAM_USERID: "{{ telegram_userid | default('') }}"
+  register: xurl_digest_cron_result
+  changed_when: "'changed' in xurl_digest_cron_result.stdout"
+  when: xurl_credentials is defined
+  notify: Restart OpenClaw
 
 # ── Phase 10: Security Audit ──────────────────────────────────────────────────
 

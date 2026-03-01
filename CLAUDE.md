@@ -55,6 +55,17 @@ Automated Ansible deployment for hardened OpenClaw AI agents in two tiers:
 ./deploy-tier2.sh -t <IP> -p anthropic -m claude-sonnet-4-5 -k <API_KEY> \
   --scripts-repo user/clamps-tools
 
+# With xurl credentials (vault-encrypted ~/.xurl — prompts for vault password)
+./deploy-tier2.sh -t <IP> -p anthropic -m claude-sonnet-4-5 -k <API_KEY> \
+  --scripts-repo user/clamps-tools \
+  --vault-file vault-xurl.yml
+
+# With xurl credentials (non-interactive — vault password passed directly)
+./deploy-tier2.sh -t <IP> -p anthropic -m claude-sonnet-4-5 -k <API_KEY> \
+  --scripts-repo user/clamps-tools \
+  --vault-file vault-xurl.yml \
+  --vault-password <VAULT_PASSWORD>
+
 # With Substack email digest (hourly IMAP poll → agent summarises new newsletters)
 ./deploy-tier2.sh -t <IP> -p anthropic -m claude-sonnet-4-5 -k <API_KEY> \
   --email-imap-host imap.gmail.com \
@@ -94,7 +105,7 @@ OpenClaw runs as a plain systemd service under the `openclaw` user. No container
 #### Task Flow (roles/tier2-setup/tasks/)
 - `main.yml` — OS detection (Debian/Ubuntu only), includes other task files in order: `debian-system.yml` → `install.yml` → `security.yml`
 - `debian-system.yml` — Package install, user creation, Tailscale auth
-- `install.yml` — Node.js 22 via NodeSource (with version guard), openclaw npm install, directory structure, gateway token generation, systemd service, doctor fix, health check, Tailscale Serve HTTPS, scripts repo SSH deploy key + clone/pull, `scripts-config.env` render, cron jobs (daily pull, weekly audit, hourly Last.fm sync, daily band check, weekly bandcheck corpus refresh)
+- `install.yml` — Node.js 22 via NodeSource (with version guard), openclaw + xurl npm install, directory structure, gateway token generation, xurl credential deploy, systemd service, doctor fix, health check, Tailscale Serve HTTPS, scripts repo SSH deploy key + clone/pull, `scripts-config.env` render, cron jobs (daily pull, weekly audit, hourly Last.fm sync, daily band check, weekly bandcheck corpus refresh), skill deployment (remind-me, xurl)
 - `security.yml` — UFW firewall rules, Fail2Ban, SSH hardening. Runs **last** so a failed install does not lock out root SSH.
 
 #### Task Order Note
@@ -119,7 +130,7 @@ Two Podman networks: `openclaw-internal` (agent ↔ LiteLLM ↔ Squid) and `open
 
 ### Secret Management
 Tier 3: Gateway token and LiteLLM master key are generated on first deploy and persisted in the remote `.env` file. Subsequent runs detect and reuse existing secrets.
-Tier 2: Gateway token generated with `openssl rand -hex 24` (must be 48-char hex — openclaw rejects base64 tokens at connection time). Persisted to `~/.openclaw/gateway.token`. Re-runs reuse the existing token. Provider API key written directly to `openclaw.json` by the template — **except MiniMax**, which uses `auth.profiles` (no inline `apiKey` in the provider block; OpenClaw reads credentials via its own credential store). Scripts repo credentials (Last.fm key, Brave key, `OPENCLAW_HOME`) are rendered into `~/scripts-config.env` (mode 0600) by Ansible — never committed to the scripts repo.
+Tier 2: Gateway token generated with `openssl rand -hex 24` (must be 48-char hex — openclaw rejects base64 tokens at connection time). Persisted to `~/.openclaw/gateway.token`. Re-runs reuse the existing token. Provider API key written directly to `openclaw.json` by the template — **except MiniMax**, which uses `auth.profiles` (no inline `apiKey` in the provider block; OpenClaw reads credentials via its own credential store). Scripts repo credentials (Last.fm key, Brave key, `OPENCLAW_HOME`) are rendered into `~/scripts-config.env` (mode 0600) by Ansible — never committed to the scripts repo. xurl credentials (`~/.xurl`) are injected from the Ansible Vault variable `xurl_credentials` (see Phase 4b); the VPS never performs the OAuth dance — run `xurl auth` locally and encrypt the result into vault.
 
 ## Development Conventions
 
@@ -135,6 +146,8 @@ Tier 2: Gateway token generated with `openssl rand -hex 24` (must be 48-char hex
 - **Substack email digest (Phase 9f):** Gated on `email_imap_host | default('') | length > 0`. Requires `--scripts-repo` (enforced in `deploy-tier2.sh`). Fetch and digest are split: a **system cron** runs `run-substack-check.sh` hourly (no agent) and appends new emails to `~/.openclaw/email-state/undigested.json`; two **OpenClaw cron jobs** at 6:45 and 10:45 UTC (= 7:45 and 11:45 Berlin in winter UTC+1; OpenClaw interprets cron expressions as UTC) run an agent that calls `run-substack-digest.sh` to read+clear `undigested.json` and send the digest. The Python task also removes the legacy `substack-email-digest` job ID if present. `processed.json` tracks all fetched Message-IDs for deduplication; `undigested.json` accumulates emails between digest runs.
 - **Substack detection:** Primary signal is `List-Unsubscribe` header containing `substack.com` — survives newsletter migrations to custom sender domains while the Substack mailer backend remains. Sender header and From address are secondary fallbacks.
 - **deploy-tier2.sh extra-vars format:** positional args now extend to `sys.argv[14]` — `[11]`=`email_imap_host`, `[12]`=`email_imap_user`, `[13]`=`email_imap_password`, `[14]`=`email_imap_folder`.
+- **xurl credentials (Phase 4b):** Injected from Ansible Vault variable `xurl_credentials` (the raw `~/.xurl` file content, encrypted at rest). Task uses `no_log: true` and is gated on `when: xurl_credentials is defined` — deploys without xurl skip it entirely. Mode `0600`, owned by `openclaw`. The xurl skill (Phase 9j) is also gated on `xurl_credentials is defined` so the skill only appears when the tool is authenticated. `.xurl` is in `.gitignore` — never commit credentials. To create the vault file: `ansible-vault encrypt_string --stdin-name xurl_credentials < ~/.xurl > vault-xurl.yml`. Pass it at deploy time with `--vault-file vault-xurl.yml` (prompts for vault password) or add `--vault-password <PASS>` for non-interactive use (password is written to a temp file, passed to Ansible, then deleted).
+- **xurl timeline digest (Phase 9k):** Mirrors the Substack split: hourly system cron runs `fetch-xurl-timeline.sh` (no agent); daily OpenClaw cron at 10:45 UTC runs the agent via `run-xurl-digest.sh` + `xurl-timeline-prompt.txt`. State lives in `${OPENCLAW_HOME}/timeline-state/`: `last-seen-id.txt` (snowflake ID for `since_id` dedup) and `undigested.json` (accumulated posts between digest runs). Bootstrap run (no `last-seen-id.txt`) fetches only the 10 most recent posts via `xurl timeline -n 10`; subsequent runs use the raw v2 endpoint `/2/users/me/timelines/reverse_chronological?since_id=...` because `xurl timeline` has no `--since-id` flag. Both cron tasks are gated on `xurl_credentials is defined`.
 
 ## openclaw.json Schema Notes (Tier 2)
 
@@ -193,6 +206,11 @@ loginctl disable-linger openclaw  # optional; system service doesn't need it
 - `roles/tier2-setup/templates/mcp.json.j2` — MCP server config (memory server only)
 - `roles/tier2-setup/templates/exec-approvals.json.j2` — Approved binary paths
 - `roles/tier2-setup/templates/scripts-config.env.j2` — Environment file for scripts repo (rendered with secrets; never committed to scripts repo)
+- `roles/tier2-setup/files/skills/remind-me/` — remind-me skill (SKILL.md + shell scripts)
+- `roles/tier2-setup/files/skills/xurl/SKILL.md` — xurl skill (thin script-reference; deployed when `xurl_credentials` is defined)
+- `clamps-tools/fetch-xurl-timeline.sh` — hourly system cron fetch; uses `since_id` for dedup; raw v2 endpoint for incremental polling
+- `clamps-tools/run-xurl-digest.sh` — atomically clears `timeline-state/undigested.json` and outputs JSON for the agent
+- `clamps-tools/xurl-timeline-prompt.txt` — agent instructions for formatting the timeline digest
 
 ### Tier 3
 - `deploy.sh` — Interactive/CLI deployment wrapper for tier 3
@@ -209,3 +227,4 @@ loginctl disable-linger openclaw  # optional; system service doesn't need it
 - **Local tools:** ansible, openssl, ssh-keygen, python 3.8+
 - **Target OS (Tier 2):** Debian/Ubuntu only
 - **Target OS (Tier 3):** Arch Linux or Debian/Ubuntu with root access
+
