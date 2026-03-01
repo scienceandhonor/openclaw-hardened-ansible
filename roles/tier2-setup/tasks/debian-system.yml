@@ -35,6 +35,7 @@
       - sudo
       - curl
       - gnupg
+      - jq
       - lsb-release
       - python3-pip
     state: present
