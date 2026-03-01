@@ -84,6 +84,32 @@
     - SOUL.md
   when: llm_provider == 'minimax'
 
+- name: Create SirShellspeare RP agent workspace
+  file:
+    path: "{{ openclaw_home }}/workspace-rp"
+    state: directory
+    owner: "{{ openclaw_user }}"
+    group: "{{ openclaw_user }}"
+    mode: '0755'
+  when: rp_telegram_bottoken | default('') | length > 0 and llm_provider == 'minimax'
+
+- name: Deploy SirShellspeare workspace files
+  copy:
+    src: "workspace-rp/{{ item }}"
+    dest: "{{ openclaw_home }}/workspace-rp/{{ item }}"
+    owner: "{{ openclaw_user }}"
+    group: "{{ openclaw_user }}"
+    mode: '0644'
+    force: false
+  loop:
+    - AGENTS.md
+    - SOUL.md
+    - CHARACTER.md
+    - USER_PERSONA.md
+    - WORLD.md
+    - EXAMPLES.md
+  when: rp_telegram_bottoken | default('') | length > 0 and llm_provider == 'minimax'
+
 
 # ── Phase 4: Gateway Token ────────────────────────────────────────────────────
 
