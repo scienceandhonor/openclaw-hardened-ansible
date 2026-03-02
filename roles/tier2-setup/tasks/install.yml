@@ -667,7 +667,7 @@
         agent_id  = os.environ.get('PINCERMOVE_AGENT_ID', '')
         for job_id, name, expr in [
             ('substack-digest-morning', 'Substack digest (morning)', '45 6 * * *'),
-            ('substack-digest-evening', 'Substack digest (evening)', '45 10 * * *'),
+            ('substack-digest-evening', 'Substack digest (evening)', '0 16 * * *'),
         ]:
             job = {
                 'id':            job_id,
@@ -739,7 +739,7 @@
             'jobId':         job_id,
             'name':          'Daily stoic quote',
             'enabled':       True,
-            'schedule':      {'kind': 'cron', 'expr': '45 6 * * *', 'staggerMs': 0},
+            'schedule':      {'kind': 'cron', 'expr': '0 7 * * *', 'staggerMs': 0},
             'sessionTarget': 'isolated',
             'wakeMode':      'now',
             'payload':       {
