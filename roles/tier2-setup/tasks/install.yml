@@ -880,12 +880,21 @@
     mode: '0644'
   when: xurl_credentials is defined
 
-# ── Phase 9k: xurl Timeline Digest ───────────────────────────────────────────
+# ── Phase 9k: xurl Token Refresh + Timeline Digest ───────────────────────────
 # Fetch and digest are split:
 #   - Hourly system cron: runs fetch-xurl-timeline.sh (no agent), appends to
 #     timeline-state/undigested.json using since_id for deduplication.
 #   - Daily OpenClaw cron at 10:45 UTC: agent reads + clears undigested.json
 #     and sends digest via Telegram.
+
+- name: Daily xurl OAuth2 token refresh (system cron)
+  cron:
+    name: "xurl token refresh"
+    minute: "30"
+    hour: "3"
+    job: "~/scripts/refresh-xurl-token.sh >> ~/xurl-token-refresh.log 2>&1; tail -c 524288 ~/xurl-token-refresh.log > ~/xurl-token-refresh.log.tmp && mv ~/xurl-token-refresh.log.tmp ~/xurl-token-refresh.log"
+    user: "{{ openclaw_user }}"
+    state: "{{ 'present' if xurl_credentials is defined else 'absent' }}"
 
 - name: Hourly xurl timeline fetch (system cron, no agent)
   cron:
