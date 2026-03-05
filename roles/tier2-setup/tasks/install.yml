@@ -498,7 +498,7 @@
 
     before = json.dumps(store, sort_keys=True)
 
-    store['jobs'] = [j for j in store['jobs'] if j.get('jobId') != job_id]
+    store['jobs'] = [j for j in store['jobs'] if j.get('jobId') != job_id and j.get('id') != job_id]
 
     if enable:
         store['jobs'].append({
@@ -567,7 +567,7 @@
 
     before = json.dumps(store, sort_keys=True)
 
-    store['jobs'] = [j for j in store['jobs'] if j.get('jobId') != job_id]
+    store['jobs'] = [j for j in store['jobs'] if j.get('jobId') != job_id and j.get('id') != job_id]
 
     if enable:
         tg_on = os.environ.get('TELEGRAM_ENABLED') == '1'
@@ -659,7 +659,7 @@
 
     before = json.dumps(store, sort_keys=True)
 
-    store['jobs'] = [j for j in store['jobs'] if j.get('jobId') not in managed]
+    store['jobs'] = [j for j in store['jobs'] if j.get('jobId') not in managed and j.get('id') not in managed]
 
     if enable:
         delivery  = {'mode': 'announce', 'channel': 'telegram', 'to': os.environ.get('TELEGRAM_USERID', '')} if tg_on else {'mode': 'none'}
@@ -730,7 +730,7 @@
 
     before = json.dumps(store, sort_keys=True)
 
-    store['jobs'] = [j for j in store['jobs'] if j.get('jobId') != job_id]
+    store['jobs'] = [j for j in store['jobs'] if j.get('jobId') != job_id and j.get('id') != job_id]
 
     if enable:
         agent_id = os.environ.get('PINCERMOVE_AGENT_ID', '')
@@ -799,7 +799,7 @@
 
     before = json.dumps(store, sort_keys=True)
 
-    store['jobs'] = [j for j in store['jobs'] if j.get('jobId') != job_id]
+    store['jobs'] = [j for j in store['jobs'] if j.get('jobId') != job_id and j.get('id') != job_id]
 
     if tg_on:
         store['jobs'].append({
@@ -884,8 +884,8 @@
 # Fetch and digest are split:
 #   - Hourly system cron: runs fetch-xurl-timeline.sh (no agent), appends to
 #     timeline-state/undigested.json using since_id for deduplication.
-#   - Daily OpenClaw cron at 10:45 UTC: agent reads + clears undigested.json
-#     and sends digest via Telegram.
+#   - Two OpenClaw cron jobs at 07:15 UTC (morning) and 16:15 UTC (evening):
+#     agent reads + clears undigested.json and sends digest via Telegram.
 
 - name: Daily xurl OAuth2 token refresh (system cron)
   cron:
@@ -911,7 +911,6 @@
     import json, os
 
     jobs_path = os.environ['HOME'] + '/.openclaw/cron/jobs.json'
-    job_id    = 'job-xurl-timeline-digest'
     enable    = os.environ.get('XURL_ENABLED') == '1'
     tg_on     = os.environ.get('TELEGRAM_ENABLED') == '1'
 
@@ -923,29 +922,35 @@
     except (FileNotFoundError, json.JSONDecodeError):
         store = {'version': 1, 'jobs': []}
 
+    # managed job IDs (also removes the legacy single-job ID if present)
+    managed = {'job-xurl-timeline-digest', 'xurl-timeline-digest-morning', 'xurl-timeline-digest-evening'}
     before = json.dumps(store, sort_keys=True)
-    store['jobs'] = [j for j in store['jobs'] if j.get('jobId') != job_id]
+    store['jobs'] = [j for j in store['jobs'] if j.get('jobId') not in managed and j.get('id') not in managed]
 
     if enable:
         delivery  = {'mode': 'announce', 'channel': 'telegram', 'to': os.environ.get('TELEGRAM_USERID', '')} if tg_on else {'mode': 'none'}
         agent_id  = os.environ.get('PINCERMOVE_AGENT_ID', '')
-        job = {
-            'id':            job_id,
-            'jobId':         job_id,
-            'name':          'X timeline digest',
-            'enabled':       True,
-            'schedule':      {'kind': 'cron', 'expr': '45 10 * * *', 'staggerMs': 0},
-            'sessionTarget': 'isolated',
-            'wakeMode':      'now',
-            'payload':       {
-                'kind':    'agentTurn',
-                'message': "Run ~/scripts/run-xurl-digest.sh — if it outputs [], stop immediately without sending any message. Otherwise follow ~/scripts/xurl-timeline-prompt.txt"
-            },
-            'delivery': delivery,
-        }
-        if agent_id:
-            job['agentId'] = agent_id
-        store['jobs'].append(job)
+        for job_id, name, expr in [
+            ('xurl-timeline-digest-morning', 'X timeline digest (morning)', '15 7 * * *'),
+            ('xurl-timeline-digest-evening', 'X timeline digest (evening)', '15 16 * * *'),
+        ]:
+            job = {
+                'id':            job_id,
+                'jobId':         job_id,
+                'name':          name,
+                'enabled':       True,
+                'schedule':      {'kind': 'cron', 'expr': expr, 'staggerMs': 0},
+                'sessionTarget': 'isolated',
+                'wakeMode':      'now',
+                'payload':       {
+                    'kind':    'agentTurn',
+                    'message': "Run ~/scripts/run-xurl-digest.sh — if it outputs [], stop immediately without sending any message. Otherwise follow ~/scripts/xurl-timeline-prompt.txt"
+                },
+                'delivery': delivery,
+            }
+            if agent_id:
+                job['agentId'] = agent_id
+            store['jobs'].append(job)
 
     after = json.dumps(store, sort_keys=True)
 
@@ -968,6 +973,100 @@
   register: xurl_digest_cron_result
   changed_when: "'changed' in xurl_digest_cron_result.stdout"
   when: xurl_credentials is defined
+  notify: Restart OpenClaw
+
+# ── Phase 9m: Reddit Digest ───────────────────────────────────────────────────
+# Mirrors the xurl pipeline: hourly system cron fetches posts via PRAW (no agent);
+# two OpenClaw cron jobs at 07:30 and 16:30 UTC run the agent digest.
+# Offset by 30 min from xurl (07:15/16:15) to avoid simultaneous agent sessions.
+
+- name: Create reddit state directory
+  file:
+    path: "{{ openclaw_home }}/reddit-state"
+    state: directory
+    owner: "{{ openclaw_user }}"
+    group: "{{ openclaw_user }}"
+    mode: '0700'
+  when: reddit_enabled | default(false) | bool
+
+- name: Hourly Reddit post fetch (system cron, no agent)
+  cron:
+    name: "Reddit post fetch"
+    minute: "30"
+    hour: "*"
+    job: "~/scripts/fetch-reddit-posts.sh >> ~/reddit-state/fetch.log 2>&1; tail -c 524288 ~/reddit-state/fetch.log > ~/reddit-state/fetch.log.tmp && mv ~/reddit-state/fetch.log.tmp ~/reddit-state/fetch.log"
+    user: "{{ openclaw_user }}"
+    state: "{{ 'present' if reddit_enabled | default(false) | bool else 'absent' }}"
+
+- name: Configure Reddit digest jobs in OpenClaw cron
+  shell: |
+    python3 - <<'PYEOF'
+    import json, os
+
+    jobs_path = os.environ['HOME'] + '/.openclaw/cron/jobs.json'
+    enable    = os.environ.get('REDDIT_ENABLED') == '1'
+    tg_on     = os.environ.get('TELEGRAM_ENABLED') == '1'
+
+    managed = {'reddit-digest-morning', 'reddit-digest-evening'}
+
+    os.makedirs(os.path.dirname(jobs_path), exist_ok=True)
+
+    try:
+        with open(jobs_path) as f:
+            store = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        store = {'version': 1, 'jobs': []}
+
+    before = json.dumps(store, sort_keys=True)
+
+    store['jobs'] = [j for j in store['jobs'] if j.get('jobId') not in managed and j.get('id') not in managed]
+
+    if enable:
+        delivery  = {'mode': 'announce', 'channel': 'telegram', 'to': os.environ.get('TELEGRAM_USERID', '')} if tg_on else {'mode': 'none'}
+        agent_id  = os.environ.get('PINCERMOVE_AGENT_ID', '')
+        for job_id, name, expr in [
+            ('reddit-digest-morning', 'Reddit digest (morning)', '30 7 * * *'),
+            ('reddit-digest-evening', 'Reddit digest (evening)', '30 16 * * *'),
+        ]:
+            job = {
+                'id':            job_id,
+                'jobId':         job_id,
+                'name':          name,
+                'enabled':       True,
+                'schedule':      {'kind': 'cron', 'expr': expr, 'staggerMs': 0},
+                'sessionTarget': 'isolated',
+                'wakeMode':      'now',
+                'payload':       {
+                    'kind':    'agentTurn',
+                    'message': 'Run ~/scripts/run-reddit-digest.sh — if it outputs [], stop immediately without sending any message. Otherwise follow ~/scripts/reddit-prompt.txt'
+                },
+                'delivery': delivery,
+            }
+            if agent_id:
+                job['agentId'] = agent_id
+            store['jobs'].append(job)
+
+    after = json.dumps(store, sort_keys=True)
+
+    if before != after:
+        tmp = jobs_path + '.tmp'
+        with open(tmp, 'w') as f:
+            json.dump(store, f, indent=2)
+        os.replace(tmp, jobs_path)
+        print('changed')
+    else:
+        print('ok')
+    PYEOF
+  become_user: "{{ openclaw_user }}"
+  environment:
+    HOME: "{{ openclaw_home }}"
+    REDDIT_ENABLED: "{{ '1' if reddit_enabled | default(false) | bool else '0' }}"
+    TELEGRAM_ENABLED: "{{ '1' if telegram_userid | default('') | length > 0 else '0' }}"
+    TELEGRAM_USERID: "{{ telegram_userid | default('') }}"
+    PINCERMOVE_AGENT_ID: "{{ 'pincermove' if llm_provider == 'minimax' else '' }}"
+  register: reddit_cron_result
+  changed_when: "'changed' in reddit_cron_result.stdout"
+  when: reddit_enabled | default(false) | bool
   notify: Restart OpenClaw
 
 # ── Phase 10: Security Audit ──────────────────────────────────────────────────

@@ -25,7 +25,8 @@ show_help() {
     echo "  --email-imap-user U   IMAP login address"
     echo "  --email-imap-password P  IMAP app password"
     echo "  --email-folder F      IMAP folder/label to poll (default: INBOX)"
-    echo "  --rp-telegram-bottoken T  Telegram bot token for SirShellspeare RP bot (MiniMax only)"
+    echo "  --rp-telegram-bottoken T  Telegram bot token for SirShellspeare RP bot (MiniMax only)
+  --enable-reddit       Enable Reddit digest (uses public JSON API — no credentials needed)"
     echo "  --vault-file FILE     Ansible Vault-encrypted vars file (e.g. vault-xurl.yml)"
     echo "  --vault-password PASS Vault password (for non-interactive deploys)"
     echo "  -h, --help            Show this help message"
@@ -55,6 +56,7 @@ EMAIL_IMAP_USER=""
 EMAIL_IMAP_PASSWORD=""
 EMAIL_FOLDER=""
 RP_TELEGRAM_BOTTOKEN=""
+REDDIT_ENABLED=false
 VAULT_FILE=""
 VAULT_PASSWORD=""
 
@@ -92,6 +94,7 @@ while [[ "$#" -gt 0 ]]; do
         --email-imap-password) EMAIL_IMAP_PASSWORD="$2"; shift ;;
         --email-folder) EMAIL_FOLDER="$2"; shift ;;
         --rp-telegram-bottoken) RP_TELEGRAM_BOTTOKEN="$2"; shift ;;
+        --enable-reddit) REDDIT_ENABLED=true ;;
         --vault-file) VAULT_FILE="$2"; shift ;;
         --vault-password) VAULT_PASSWORD="$2"; shift ;;
         -h|--help) show_help; exit 0 ;;
@@ -312,6 +315,11 @@ if [ -n "$RP_TELEGRAM_BOTTOKEN" ]; then
 else
     echo "RP bot:    not configured"
 fi
+if [ "$REDDIT_ENABLED" = true ]; then
+    echo "Reddit:    enabled (public JSON API)"
+else
+    echo "Reddit:    not configured"
+fi
 if [ -n "$VAULT_FILE" ]; then
     echo "Vault:     $VAULT_FILE"
 fi
@@ -382,7 +390,8 @@ print(json.dumps({
     'email_imap_password': sys.argv[13],
     'email_imap_folder':   sys.argv[14],
     'rp_telegram_bottoken': sys.argv[15],
-}))" "$LLM_PROVIDER" "$LLM_MODEL" "$LLM_URL" "$LLM_KEY" "$TELEGRAM_USERID" "$TELEGRAM_BOTTOKEN" "$BRAVE_KEY" "$LASTFM_KEY" "$LASTFM_USERNAME" "$SCRIPTS_REPO" "$EMAIL_IMAP_HOST" "$EMAIL_IMAP_USER" "$EMAIL_IMAP_PASSWORD" "$EMAIL_FOLDER" "$RP_TELEGRAM_BOTTOKEN")
+    'reddit_enabled':        sys.argv[16] == 'true',
+}))" "$LLM_PROVIDER" "$LLM_MODEL" "$LLM_URL" "$LLM_KEY" "$TELEGRAM_USERID" "$TELEGRAM_BOTTOKEN" "$BRAVE_KEY" "$LASTFM_KEY" "$LASTFM_USERNAME" "$SCRIPTS_REPO" "$EMAIL_IMAP_HOST" "$EMAIL_IMAP_USER" "$EMAIL_IMAP_PASSWORD" "$EMAIL_FOLDER" "$RP_TELEGRAM_BOTTOKEN" "$REDDIT_ENABLED")
 
 # Run Playbook
 ansible-playbook -i "$TEMP_INVENTORY" playbook-tier2.yml $ANSIBLE_ARGS \
