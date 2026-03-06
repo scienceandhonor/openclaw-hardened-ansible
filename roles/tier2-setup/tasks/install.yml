@@ -802,7 +802,8 @@
     store['jobs'] = [j for j in store['jobs'] if j.get('jobId') != job_id and j.get('id') != job_id]
 
     if tg_on:
-        store['jobs'].append({
+        agent_id = os.environ.get('PINCERMOVE_AGENT_ID', '')
+        job = {
             'id':            job_id,
             'jobId':         job_id,
             'name':          'MiniMax weekly summary reminder',
@@ -815,7 +816,10 @@
                 'message': "Remind the user: it's Friday evening — time to run /minimax-analysis to generate the weekly MiniMax API usage report. Send only this reminder, nothing else."
             },
             'delivery':      {'mode': 'announce', 'channel': 'telegram', 'to': os.environ.get('TELEGRAM_USERID', '')}
-        })
+        }
+        if agent_id:
+            job['agentId'] = agent_id
+        store['jobs'].append(job)
 
     after = json.dumps(store, sort_keys=True)
 
@@ -833,6 +837,7 @@
     HOME: "{{ openclaw_home }}"
     TELEGRAM_ENABLED: "{{ '1' if telegram_userid | default('') | length > 0 else '0' }}"
     TELEGRAM_USERID: "{{ telegram_userid | default('') }}"
+    PINCERMOVE_AGENT_ID: "{{ 'pincermove' if llm_provider == 'minimax' else '' }}"
   register: minimax_reminder_result
   changed_when: "'changed' in minimax_reminder_result.stdout"
   when: telegram_userid | default('') | length > 0
@@ -1096,7 +1101,8 @@
     store['jobs'] = [j for j in store['jobs'] if j.get('jobId') != job_id and j.get('id') != job_id]
 
     if tg_on:
-        store['jobs'].append({
+        agent_id = os.environ.get('PINCERMOVE_AGENT_ID', '')
+        job = {
             'id':            job_id,
             'jobId':         job_id,
             'name':          'OpenClaw update check',
@@ -1109,7 +1115,10 @@
                 'message': "Run `openclaw update status --json` and parse the output. If `availability.available` is true, send a Telegram message to the user saying a new OpenClaw version is available and include the value of `registry.latestVersion`. If no update is available, do nothing — send no message."
             },
             'delivery':      {'mode': 'announce', 'channel': 'telegram', 'to': os.environ.get('TELEGRAM_USERID', '')}
-        })
+        }
+        if agent_id:
+            job['agentId'] = agent_id
+        store['jobs'].append(job)
 
     after = json.dumps(store, sort_keys=True)
 
@@ -1127,6 +1136,7 @@
     HOME: "{{ openclaw_home }}"
     TELEGRAM_ENABLED: "{{ '1' if telegram_userid | default('') | length > 0 else '0' }}"
     TELEGRAM_USERID: "{{ telegram_userid | default('') }}"
+    PINCERMOVE_AGENT_ID: "{{ 'pincermove' if llm_provider == 'minimax' else '' }}"
   register: openclaw_update_check_result
   changed_when: "'changed' in openclaw_update_check_result.stdout"
   when: telegram_userid | default('') | length > 0
