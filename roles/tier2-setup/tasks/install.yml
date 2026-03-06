@@ -1069,6 +1069,69 @@
   when: reddit_enabled | default(false) | bool
   notify: Restart OpenClaw
 
+# ── Phase 9n: Daily OpenClaw update check ────────────────────────────────────
+# Every day at 20:30 UTC the agent runs `openclaw update status --json` and,
+# if availability.available is true, notifies the user on Telegram with the
+# new version. Gated on Telegram being configured; no scripts repo required.
+
+- name: Configure daily OpenClaw update check in OpenClaw cron
+  shell: |
+    python3 - <<'PYEOF'
+    import json, os
+
+    jobs_path = os.environ['HOME'] + '/.openclaw/cron/jobs.json'
+    job_id    = 'job-openclaw-update-check'
+    tg_on     = os.environ.get('TELEGRAM_ENABLED') == '1'
+
+    os.makedirs(os.path.dirname(jobs_path), exist_ok=True)
+
+    try:
+        with open(jobs_path) as f:
+            store = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        store = {'version': 1, 'jobs': []}
+
+    before = json.dumps(store, sort_keys=True)
+
+    store['jobs'] = [j for j in store['jobs'] if j.get('jobId') != job_id and j.get('id') != job_id]
+
+    if tg_on:
+        store['jobs'].append({
+            'id':            job_id,
+            'jobId':         job_id,
+            'name':          'OpenClaw update check',
+            'enabled':       True,
+            'schedule':      {'kind': 'cron', 'expr': '30 20 * * *', 'staggerMs': 0},
+            'sessionTarget': 'isolated',
+            'wakeMode':      'now',
+            'payload':       {
+                'kind':    'agentTurn',
+                'message': "Run `openclaw update status --json` and parse the output. If `availability.available` is true, send a Telegram message to the user saying a new OpenClaw version is available and include the value of `registry.latestVersion`. If no update is available, do nothing — send no message."
+            },
+            'delivery':      {'mode': 'announce', 'channel': 'telegram', 'to': os.environ.get('TELEGRAM_USERID', '')}
+        })
+
+    after = json.dumps(store, sort_keys=True)
+
+    if before != after:
+        tmp = jobs_path + '.tmp'
+        with open(tmp, 'w') as f:
+            json.dump(store, f, indent=2)
+        os.replace(tmp, jobs_path)
+        print('changed')
+    else:
+        print('ok')
+    PYEOF
+  become_user: "{{ openclaw_user }}"
+  environment:
+    HOME: "{{ openclaw_home }}"
+    TELEGRAM_ENABLED: "{{ '1' if telegram_userid | default('') | length > 0 else '0' }}"
+    TELEGRAM_USERID: "{{ telegram_userid | default('') }}"
+  register: openclaw_update_check_result
+  changed_when: "'changed' in openclaw_update_check_result.stdout"
+  when: telegram_userid | default('') | length > 0
+  notify: Restart OpenClaw
+
 # ── Phase 10: Security Audit ──────────────────────────────────────────────────
 
 - name: Run initial security audit
