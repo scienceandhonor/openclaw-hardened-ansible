@@ -68,7 +68,16 @@
       "models": {
         "anthropic/claude-sonnet-4-5": {}
       },
-      "heartbeat": { "every": "5m" }
+      "heartbeat": { "every": "5m" },
+      "contextTokens": 80000,
+      "compaction": {
+        "mode": "safeguard",
+        "reserveTokensFloor": 24000,
+        "memoryFlush": {
+          "enabled": true,
+          "softThresholdTokens": 6000
+        }
+      }
     },
     "list": [
       {
