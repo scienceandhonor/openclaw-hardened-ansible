@@ -1163,7 +1163,7 @@
   notify: Restart OpenClaw
 
 # ── Phase 9o: Daily OpenClaw feature tips ─────────────────────────────────────
-# Every evening at 20:00 UTC the main agent inspects the live config, picks one
+# Every evening at 19:00 UTC (20:00 Berlin CET) the main agent inspects the live config, picks one
 # underused or unconfigured feature, suggests it on Telegram, and logs the
 # suggestion in ~/feature-tips-state/suggested.json to avoid repeats.
 # Prompt lives in ~/scripts/openclaw-feature-tips-prompt.txt (deployed manually).
@@ -1205,7 +1205,7 @@
             'jobId':         job_id,
             'name':          'OpenClaw feature tips',
             'enabled':       True,
-            'schedule':      {'kind': 'cron', 'expr': '0 20 * * *', 'staggerMs': 0},
+            'schedule':      {'kind': 'cron', 'expr': '0 19 * * *', 'staggerMs': 0},
             'sessionTarget': 'isolated',
             'wakeMode':      'now',
             'payload':       {
