@@ -1162,6 +1162,81 @@
   when: telegram_userid | default('') | length > 0
   notify: Restart OpenClaw
 
+# ── Phase 9o: Daily OpenClaw feature tips ─────────────────────────────────────
+# Every evening at 20:00 UTC the main agent inspects the live config, picks one
+# underused or unconfigured feature, suggests it on Telegram, and logs the
+# suggestion in ~/feature-tips-state/suggested.json to avoid repeats.
+# Prompt lives in ~/scripts/openclaw-feature-tips-prompt.txt (deployed manually).
+# Always runs on the main agent (no PINCERMOVE routing).
+
+- name: Create feature-tips state directory
+  file:
+    path: "{{ openclaw_home }}/feature-tips-state"
+    state: directory
+    owner: "{{ openclaw_user }}"
+    group: "{{ openclaw_user }}"
+    mode: '0700'
+  when: telegram_userid | default('') | length > 0
+
+- name: Configure daily OpenClaw feature tips job in OpenClaw cron
+  shell: |
+    python3 - <<'PYEOF'
+    import json, os
+
+    jobs_path = os.environ['HOME'] + '/.openclaw/cron/jobs.json'
+    job_id    = 'job-feature-tips'
+    tg_on     = os.environ.get('TELEGRAM_ENABLED') == '1'
+
+    os.makedirs(os.path.dirname(jobs_path), exist_ok=True)
+
+    try:
+        with open(jobs_path) as f:
+            store = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        store = {'version': 1, 'jobs': []}
+
+    before = json.dumps(store, sort_keys=True)
+
+    store['jobs'] = [j for j in store['jobs'] if j.get('jobId') != job_id and j.get('id') != job_id]
+
+    if tg_on:
+        job = {
+            'id':            job_id,
+            'jobId':         job_id,
+            'name':          'OpenClaw feature tips',
+            'enabled':       True,
+            'schedule':      {'kind': 'cron', 'expr': '0 20 * * *', 'staggerMs': 0},
+            'sessionTarget': 'isolated',
+            'wakeMode':      'now',
+            'payload':       {
+                'kind':    'agentTurn',
+                'message': 'Follow the instructions in ~/scripts/openclaw-feature-tips-prompt.txt exactly.'
+            },
+            'delivery':      {'mode': 'announce', 'channel': 'telegram', 'to': os.environ.get('TELEGRAM_USERID', '')}
+        }
+        store['jobs'].append(job)
+
+    after = json.dumps(store, sort_keys=True)
+
+    if before != after:
+        tmp = jobs_path + '.tmp'
+        with open(tmp, 'w') as f:
+            json.dump(store, f, indent=2)
+        os.replace(tmp, jobs_path)
+        print('changed')
+    else:
+        print('ok')
+    PYEOF
+  become_user: "{{ openclaw_user }}"
+  environment:
+    HOME: "{{ openclaw_home }}"
+    TELEGRAM_ENABLED: "{{ '1' if telegram_userid | default('') | length > 0 else '0' }}"
+    TELEGRAM_USERID: "{{ telegram_userid | default('') }}"
+  register: feature_tips_cron_result
+  changed_when: "'changed' in feature_tips_cron_result.stdout"
+  when: telegram_userid | default('') | length > 0
+  notify: Restart OpenClaw
+
 # ── Phase 10: Security Audit ──────────────────────────────────────────────────
 
 - name: Run initial security audit
