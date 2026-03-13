@@ -51,12 +51,13 @@ no markdown headers. Use a brief bold title, then the explanation.
 
 Example 1 (feature not configured):
 
-**Brave Web Search**
-Your agent can search the web during conversations if a Brave API key is
-configured. Right now web search is not set up — you could add a key next
-time you re-deploy, but in the meantime try asking me to fetch a URL
-directly with the `web_fetch` tool — it works without an API key and can
-pull in articles or docs on demand.
+**Custom Skills**
+You can create new skills beyond the built-in ones by adding a SKILL.md
+file to ~/.openclaw/skills/<name>/. A skill is just a markdown file that
+teaches me a new command — for example a /weather skill that runs a curl
+request, or a /journal skill that appends to a daily log file. Try asking
+me to create a simple skill for you right now — just describe what you
+want it to do.
 
 Example 2 (feature configured but underused):
 
