@@ -10,4 +10,8 @@ header — the script uses it as the opening of the world-context section.]
 
 ---
 
+## Chronicle
+
+*Events are tagged (user) for player-driven or (world) for autonomous world events.*
+
 *No entries yet.*
