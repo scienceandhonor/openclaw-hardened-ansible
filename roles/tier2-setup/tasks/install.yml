@@ -531,7 +531,7 @@
             'wakeMode':      'now',
             'payload':       {
                 'kind':    'agentTurn',
-                'message': 'Run ~/scripts/fetch-lastfm-artists.sh to sync Last.fm recently played artists. Report how many new artists were added.'
+                'message': 'Run {{ openclaw_home }}/scripts/fetch-lastfm-artists.sh to sync Last.fm recently played artists. Report how many new artists were added.'
             },
             'delivery':      {'mode': 'none'}
         })
@@ -601,7 +601,7 @@
             'wakeMode':      'now',
             'payload':       {
                 'kind':    'agentTurn',
-                'message': 'Run ~/scripts/check-bands.sh then follow the instructions in ~/scripts/bandcheck-prompt.txt'
+                'message': 'Run {{ openclaw_home }}/scripts/check-bands.sh then follow the instructions in {{ openclaw_home }}/scripts/bandcheck-prompt.txt'
             },
             'delivery':      {'mode': 'announce', 'channel': 'telegram', 'to': os.environ.get('TELEGRAM_USERID', '')} if tg_on else {'mode': 'none'}
         })
@@ -683,7 +683,7 @@
 
     if enable:
         delivery  = {'mode': 'announce', 'channel': 'telegram', 'to': os.environ.get('TELEGRAM_USERID', '')} if tg_on else {'mode': 'none'}
-        message   = 'Run ~/scripts/run-substack-digest.sh then follow the instructions in ~/scripts/substack-prompt.txt'
+        message   = 'Run {{ openclaw_home }}/scripts/run-substack-digest.sh then follow the instructions in {{ openclaw_home }}/scripts/substack-prompt.txt'
         agent_id  = os.environ.get('PINCERMOVE_AGENT_ID', '')
         for job_id, name, expr in [
             ('substack-digest-morning', 'Substack digest (morning)', '45 6 * * *'),
@@ -764,7 +764,7 @@
             'wakeMode':      'now',
             'payload':       {
                 'kind':    'agentTurn',
-                'message': 'Run ~/scripts/daily-stoic.py and reply with only its output.'
+                'message': 'Run {{ openclaw_home }}/scripts/daily-stoic.py and reply with only its output.'
             },
             'delivery':      {'mode': 'announce', 'channel': 'telegram', 'to': os.environ.get('TELEGRAM_USERID', '')} if tg_on else {'mode': 'none'}
         }
@@ -969,7 +969,7 @@
                 'wakeMode':      'now',
                 'payload':       {
                     'kind':    'agentTurn',
-                    'message': "Run ~/scripts/run-xurl-digest.sh — if it outputs [], stop immediately without sending any message. Otherwise follow ~/scripts/xurl-timeline-prompt.txt"
+                    'message': "Run {{ openclaw_home }}/scripts/run-xurl-digest.sh — if it outputs [], stop immediately without sending any message. Otherwise follow {{ openclaw_home }}/scripts/xurl-timeline-prompt.txt"
                 },
                 'delivery': delivery,
             }
@@ -1063,7 +1063,7 @@
                 'wakeMode':      'now',
                 'payload':       {
                     'kind':    'agentTurn',
-                    'message': 'Run ~/scripts/run-reddit-digest.sh — if it outputs [], stop immediately without sending any message. Otherwise follow ~/scripts/reddit-prompt.txt'
+                    'message': 'Run {{ openclaw_home }}/scripts/run-reddit-digest.sh — if it outputs [], stop immediately without sending any message. Otherwise follow {{ openclaw_home }}/scripts/reddit-prompt.txt'
                 },
                 'delivery': delivery,
             }
