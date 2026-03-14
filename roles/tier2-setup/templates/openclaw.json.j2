@@ -197,7 +197,15 @@
           "enabled": true,
           "softThresholdTokens": 6000
         }
+      }{% if gemini_key | default('') | length > 0 %},
+      "memorySearch": {
+        "provider": "gemini",
+        "model": "gemini-embedding-001",
+        "remote": {
+          "apiKey": "{{ gemini_key }}"
+        }
       }
+{% endif %}
     },
     "list": [
       {

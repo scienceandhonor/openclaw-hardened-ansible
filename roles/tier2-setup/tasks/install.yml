@@ -64,11 +64,14 @@
 
 - name: Create ThePincerMove digest agent workspace
   file:
-    path: "{{ openclaw_home }}/workspace-pincermove"
+    path: "{{ item }}"
     state: directory
     owner: "{{ openclaw_user }}"
     group: "{{ openclaw_user }}"
     mode: '0755'
+  loop:
+    - "{{ openclaw_home }}/workspace-pincermove"
+    - "{{ openclaw_home }}/workspace-pincermove/memory"
   when: llm_provider == 'minimax'
 
 - name: Deploy ThePincerMove workspace files (AGENTS.md, SOUL.md)
@@ -86,11 +89,14 @@
 
 - name: Create SirShellspeare RP agent workspace
   file:
-    path: "{{ openclaw_home }}/workspace-rp"
+    path: "{{ item }}"
     state: directory
     owner: "{{ openclaw_user }}"
     group: "{{ openclaw_user }}"
     mode: '0755'
+  loop:
+    - "{{ openclaw_home }}/workspace-rp"
+    - "{{ openclaw_home }}/workspace-rp/memory"
   when: rp_telegram_bottoken | default('') | length > 0 and llm_provider == 'minimax'
 
 - name: Deploy SirShellspeare workspace files
@@ -152,6 +158,7 @@
     owner: "{{ openclaw_user }}"
     group: "{{ openclaw_user }}"
     mode: "0600"
+    force: "{{ xurl_force_token | default(false) | bool }}"
   no_log: true
   when: xurl_credentials is defined
 
@@ -205,6 +212,14 @@
 # We write the unit file directly rather than using `openclaw onboard --install-daemon`
 # so the playbook stays idempotent and the service definition is version-controlled.
 
+- name: Create Node.js compile cache directory
+  file:
+    path: /var/tmp/openclaw-compile-cache
+    state: directory
+    owner: "{{ openclaw_user }}"
+    group: "{{ openclaw_user }}"
+    mode: '0755'
+
 - name: Create openclaw systemd service
   copy:
     dest: /etc/systemd/system/openclaw.service
@@ -226,6 +241,11 @@
       Environment=HOME={{ openclaw_home }}
       Environment=OPENCLAW_GATEWAY_TOKEN={{ gateway_token }}
       Environment=NODE_OPTIONS=--no-network-family-autoselection
+      Environment=NODE_COMPILE_CACHE=/var/tmp/openclaw-compile-cache
+      Environment=OPENCLAW_NO_RESPAWN=1
+      {% if gemini_key | default('') | length > 0 %}
+      Environment=GEMINI_API_KEY={{ gemini_key }}
+      {% endif %}
       ExecStart={{ openclaw_bin.stdout }} gateway run
       Restart=on-failure
       RestartSec=15

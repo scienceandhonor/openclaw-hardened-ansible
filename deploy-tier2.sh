@@ -27,8 +27,10 @@ show_help() {
     echo "  --email-folder F      IMAP folder/label to poll (default: INBOX)"
     echo "  --rp-telegram-bottoken T  Telegram bot token for SirShellspeare RP bot (MiniMax only)
   --enable-reddit       Enable Reddit digest (uses public JSON API — no credentials needed)"
+    echo "  --gemini-key KEY      Gemini API key (enables semantic memory search via embeddings)"
     echo "  --vault-file FILE     Ansible Vault-encrypted vars file (e.g. vault-xurl.yml)"
     echo "  --vault-password PASS Vault password (for non-interactive deploys)"
+    echo "  --reset-xurl-token    Overwrite ~/.xurl on VPS with vault copy (use when token is broken)"
     echo "  -h, --help            Show this help message"
     echo ""
     echo "Deploys OpenClaw Tier 2 (direct host, no containers) to an Ubuntu/Debian VPS."
@@ -59,6 +61,8 @@ RP_TELEGRAM_BOTTOKEN=""
 REDDIT_ENABLED=false
 VAULT_FILE=""
 VAULT_PASSWORD=""
+RESET_XURL_TOKEN=false
+GEMINI_KEY=""
 
 # Normalize --flag=value into --flag value so both forms work
 _ARGS=()
@@ -95,6 +99,8 @@ while [[ "$#" -gt 0 ]]; do
         --email-folder) EMAIL_FOLDER="$2"; shift ;;
         --rp-telegram-bottoken) RP_TELEGRAM_BOTTOKEN="$2"; shift ;;
         --enable-reddit) REDDIT_ENABLED=true ;;
+        --reset-xurl-token) RESET_XURL_TOKEN=true ;;
+        --gemini-key) GEMINI_KEY="$2"; shift ;;
         --vault-file) VAULT_FILE="$2"; shift ;;
         --vault-password) VAULT_PASSWORD="$2"; shift ;;
         -h|--help) show_help; exit 0 ;;
@@ -320,8 +326,16 @@ if [ "$REDDIT_ENABLED" = true ]; then
 else
     echo "Reddit:    not configured"
 fi
+if [ -n "$GEMINI_KEY" ]; then
+    echo "Gemini:    embedding key=***"
+else
+    echo "Gemini:    not configured"
+fi
 if [ -n "$VAULT_FILE" ]; then
     echo "Vault:     $VAULT_FILE"
+fi
+if [ "$RESET_XURL_TOKEN" = true ]; then
+    echo "xurl:      token will be OVERWRITTEN from vault"
 fi
 echo "----------------------------------------"
 
@@ -391,7 +405,9 @@ print(json.dumps({
     'email_imap_folder':   sys.argv[14],
     'rp_telegram_bottoken': sys.argv[15],
     'reddit_enabled':        sys.argv[16] == 'true',
-}))" "$LLM_PROVIDER" "$LLM_MODEL" "$LLM_URL" "$LLM_KEY" "$TELEGRAM_USERID" "$TELEGRAM_BOTTOKEN" "$BRAVE_KEY" "$LASTFM_KEY" "$LASTFM_USERNAME" "$SCRIPTS_REPO" "$EMAIL_IMAP_HOST" "$EMAIL_IMAP_USER" "$EMAIL_IMAP_PASSWORD" "$EMAIL_FOLDER" "$RP_TELEGRAM_BOTTOKEN" "$REDDIT_ENABLED")
+    'xurl_force_token':      sys.argv[17] == 'true',
+    'gemini_key':            sys.argv[18],
+}))" "$LLM_PROVIDER" "$LLM_MODEL" "$LLM_URL" "$LLM_KEY" "$TELEGRAM_USERID" "$TELEGRAM_BOTTOKEN" "$BRAVE_KEY" "$LASTFM_KEY" "$LASTFM_USERNAME" "$SCRIPTS_REPO" "$EMAIL_IMAP_HOST" "$EMAIL_IMAP_USER" "$EMAIL_IMAP_PASSWORD" "$EMAIL_FOLDER" "$RP_TELEGRAM_BOTTOKEN" "$REDDIT_ENABLED" "$RESET_XURL_TOKEN" "$GEMINI_KEY")
 
 # Run Playbook
 ansible-playbook -i "$TEMP_INVENTORY" playbook-tier2.yml $ANSIBLE_ARGS \
