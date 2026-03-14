@@ -253,8 +253,20 @@
         }
       }{% endif %}{% endif %}
     ]
-  }{% if brave_key | default('') | length > 0 %},
+  },
   "tools": {
+    "loopDetection": {
+      "enabled": true,
+      "historySize": 30,
+      "warningThreshold": 10,
+      "criticalThreshold": 20,
+      "globalCircuitBreakerThreshold": 30,
+      "detectors": {
+        "genericRepeat": true,
+        "knownPollNoProgress": true,
+        "pingPong": true
+      }
+    }{% if brave_key | default('') | length > 0 %},
     "web": {
       "search": {
         "provider": "brave",
@@ -264,6 +276,6 @@
         "enabled": true
       }
     }
-  }
 {% endif %}
+  }
 }
