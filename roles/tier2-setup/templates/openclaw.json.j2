@@ -33,6 +33,11 @@
     "consoleStyle": "compact",
     "redactSensitive": "tools"
   },
+{% if openrouter_key | default('') | length > 0 %}
+  "env": {
+    "OPENROUTER_API_KEY": "{{ openrouter_key }}"
+  },
+{% endif %}
 {% if llm_provider == 'minimax' %}
   "auth": {
     "profiles": {
@@ -233,8 +238,8 @@
         "name": "ThePincerMove",
         "workspace": "{{ openclaw_home }}/workspace-pincermove",
         "model": {
-          "primary": "minimax/MiniMax-M2.1",
-          "fallbacks": []
+          "primary": "openrouter/stepfun/step-3.5-flash:free",
+          "fallbacks": ["minimax/MiniMax-M2.1"]
         },
         "tools": {
           "deny": ["write", "edit", "apply_patch", "browser", "process"]
