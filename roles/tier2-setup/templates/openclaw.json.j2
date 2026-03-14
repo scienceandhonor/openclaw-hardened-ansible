@@ -27,6 +27,12 @@
   "discovery": {
     "mdns": { "mode": "off" }
   },
+  "logging": {
+    "level": "info",
+    "consoleLevel": "info",
+    "consoleStyle": "compact",
+    "redactSensitive": "tools"
+  },
 {% if llm_provider == 'minimax' %}
   "auth": {
     "profiles": {
