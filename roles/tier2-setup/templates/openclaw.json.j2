@@ -187,8 +187,8 @@
           "name": "SirShellspeare",
           "botToken": "{{ rp_telegram_bottoken }}"
         }{% endif %}{% if moltbook_telegram_bottoken | default('') | length > 0 %},
-        "sociaclamp": {
-          "name": "Sociaclamp",
+        "sociaclamps": {
+          "name": "Sociaclamps",
           "botToken": "{{ moltbook_telegram_bottoken }}"
         }{% endif %}
       }
@@ -201,7 +201,7 @@
   "bindings": [
     { "agentId": "main", "match": { "channel": "telegram", "accountId": "default" } }{% if rp_telegram_bottoken | default('') | length > 0 %},
     { "agentId": "sirshellspeare", "match": { "channel": "telegram", "accountId": "sirshellspeare" } }{% endif %}{% if moltbook_telegram_bottoken | default('') | length > 0 %},
-    { "agentId": "sociaclamp", "match": { "channel": "telegram", "accountId": "sociaclamp" } }{% endif %}
+    { "agentId": "sociaclamps", "match": { "channel": "telegram", "accountId": "sociaclamps" } }{% endif %}
   ],
 {% endif %}
   "agents": {
@@ -278,9 +278,9 @@
         }
       }{% endif %}{% endif %}{% if moltbook_telegram_bottoken | default('') | length > 0 %},
       {
-        "id": "sociaclamp",
-        "name": "Sociaclamp",
-        "workspace": "{{ openclaw_home }}/workspace-sociaclamp",
+        "id": "sociaclamps",
+        "name": "Sociaclamps",
+        "workspace": "{{ openclaw_home }}/workspace-sociaclamps",
         "model": {
 {% if anthropic_api_key | default('') | length > 0 %}
           "primary": "anthropic/claude-sonnet-4-6",

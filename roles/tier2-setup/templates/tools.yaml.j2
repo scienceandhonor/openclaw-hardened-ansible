@@ -27,7 +27,7 @@ tools:
       - "{{ openclaw_home }}/world-events"
 {% endif %}
 {% if moltbook_telegram_bottoken | default('') | length > 0 %}
-      - "{{ openclaw_home }}/workspace-sociaclamp"
+      - "{{ openclaw_home }}/workspace-sociaclamps"
 {% endif %}
     deniedPaths:
       - "{{ openclaw_home }}/.ssh"
