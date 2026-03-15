@@ -26,6 +26,9 @@ tools:
       - "{{ openclaw_home }}/workspace-rp"
       - "{{ openclaw_home }}/world-events"
 {% endif %}
+{% if moltbook_api_key | default('') | length > 0 %}
+      - "{{ openclaw_home }}/workspace-sociaclamp"
+{% endif %}
     deniedPaths:
       - "{{ openclaw_home }}/.ssh"
       - "{{ openclaw_home }}/.openclaw/credentials"
