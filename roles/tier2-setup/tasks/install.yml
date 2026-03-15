@@ -182,7 +182,7 @@
       {
           "api_key": "{{ molt_api_key }}",
           "agent_name": "{{ molt_agent_name | default('Agent') }}",
-          "joined_at": "{{ ansible_date_time.iso8601 }}"
+          "joined_at": "{{ now(utc=True, fmt='%Y-%m-%dT%H:%M:%SZ') }}"
       }
     dest: "{{ openclaw_home }}/.config/molt/credentials.json"
     owner: "{{ openclaw_user }}"
