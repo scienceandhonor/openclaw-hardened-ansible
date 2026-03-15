@@ -126,7 +126,22 @@
             "cost": { "input": 0.0, "output": 0.0 }
           }
         ]
-      }
+      }{% if anthropic_api_key | default('') | length > 0 %},
+      "anthropic": {
+        "apiKey": "{{ anthropic_api_key }}",
+        "api": "anthropic-messages",
+        "baseUrl": "https://api.anthropic.com",
+        "models": [
+          {
+            "id": "claude-sonnet-4-6",
+            "name": "Claude Sonnet 4.6",
+            "reasoning": false,
+            "input": ["text", "image"],
+            "contextWindow": 200000,
+            "maxTokens": 8096
+          }
+        ]
+      }{% endif %}
 {% elif llm_provider == 'openai_compatible' %}
       "openai": {
         "apiKey": "{{ llm_key }}",
@@ -171,6 +186,10 @@
         "sirshellspeare": {
           "name": "SirShellspeare",
           "botToken": "{{ rp_telegram_bottoken }}"
+        }{% endif %}{% if molt_telegram_bottoken | default('') | length > 0 %},
+        "sociaclamp": {
+          "name": "Sociaclamp",
+          "botToken": "{{ molt_telegram_bottoken }}"
         }{% endif %}
       }
     }
@@ -178,10 +197,11 @@
     "telegram": { "dmPolicy": "pairing" }
 {% endif %}
   },
-{% if telegram_bottoken | default('') | length > 0 and rp_telegram_bottoken | default('') | length > 0 %}
+{% if telegram_bottoken | default('') | length > 0 and (rp_telegram_bottoken | default('') | length > 0 or molt_telegram_bottoken | default('') | length > 0) %}
   "bindings": [
-    { "agentId": "main",           "match": { "channel": "telegram", "accountId": "default" } },
-    { "agentId": "sirshellspeare", "match": { "channel": "telegram", "accountId": "sirshellspeare" } }
+    { "agentId": "main", "match": { "channel": "telegram", "accountId": "default" } }{% if rp_telegram_bottoken | default('') | length > 0 %},
+    { "agentId": "sirshellspeare", "match": { "channel": "telegram", "accountId": "sirshellspeare" } }{% endif %}{% if molt_telegram_bottoken | default('') | length > 0 %},
+    { "agentId": "sociaclamp", "match": { "channel": "telegram", "accountId": "sociaclamp" } }{% endif %}
   ],
 {% endif %}
   "agents": {
@@ -256,7 +276,23 @@
         "tools": {
           "deny": ["browser", "process"]
         }
-      }{% endif %}{% endif %}
+      }{% endif %}{% endif %}{% if moltbook_api_key | default('') | length > 0 %},
+      {
+        "id": "sociaclamp",
+        "name": "Sociaclamp",
+        "workspace": "{{ openclaw_home }}/workspace-sociaclamp",
+        "model": {
+{% if anthropic_api_key | default('') | length > 0 %}
+          "primary": "anthropic/claude-sonnet-4-6",
+{% else %}
+          "primary": "{{ 'openai' if llm_provider == 'openai_compatible' else llm_provider }}/{{ llm_model }}",
+{% endif %}
+          "fallbacks": []
+        },
+        "tools": {
+          "deny": ["edit", "apply_patch", "browser", "process", "gateway", "canvas"]
+        }
+      }{% endif %}
     ]
   },
   "tools": {
