@@ -186,10 +186,10 @@
         "sirshellspeare": {
           "name": "SirShellspeare",
           "botToken": "{{ rp_telegram_bottoken }}"
-        }{% endif %}{% if molt_telegram_bottoken | default('') | length > 0 %},
+        }{% endif %}{% if moltbook_telegram_bottoken | default('') | length > 0 %},
         "sociaclamp": {
           "name": "Sociaclamp",
-          "botToken": "{{ molt_telegram_bottoken }}"
+          "botToken": "{{ moltbook_telegram_bottoken }}"
         }{% endif %}
       }
     }
@@ -197,10 +197,10 @@
     "telegram": { "dmPolicy": "pairing" }
 {% endif %}
   },
-{% if telegram_bottoken | default('') | length > 0 and (rp_telegram_bottoken | default('') | length > 0 or molt_telegram_bottoken | default('') | length > 0) %}
+{% if telegram_bottoken | default('') | length > 0 and (rp_telegram_bottoken | default('') | length > 0 or moltbook_telegram_bottoken | default('') | length > 0) %}
   "bindings": [
     { "agentId": "main", "match": { "channel": "telegram", "accountId": "default" } }{% if rp_telegram_bottoken | default('') | length > 0 %},
-    { "agentId": "sirshellspeare", "match": { "channel": "telegram", "accountId": "sirshellspeare" } }{% endif %}{% if molt_telegram_bottoken | default('') | length > 0 %},
+    { "agentId": "sirshellspeare", "match": { "channel": "telegram", "accountId": "sirshellspeare" } }{% endif %}{% if moltbook_telegram_bottoken | default('') | length > 0 %},
     { "agentId": "sociaclamp", "match": { "channel": "telegram", "accountId": "sociaclamp" } }{% endif %}
   ],
 {% endif %}
@@ -276,7 +276,7 @@
         "tools": {
           "deny": ["browser", "process"]
         }
-      }{% endif %}{% endif %}{% if moltbook_api_key | default('') | length > 0 %},
+      }{% endif %}{% endif %}{% if moltbook_telegram_bottoken | default('') | length > 0 %},
       {
         "id": "sociaclamp",
         "name": "Sociaclamp",

@@ -126,7 +126,7 @@
   loop:
     - "{{ openclaw_home }}/workspace-sociaclamp"
     - "{{ openclaw_home }}/workspace-sociaclamp/memory"
-  when: moltbook_api_key | default('') | length > 0
+  when: moltbook_telegram_bottoken | default('') | length > 0
 
 - name: Deploy Sociaclamp workspace files (AGENTS.md, SOUL.md)
   copy:
@@ -139,7 +139,7 @@
   loop:
     - AGENTS.md
     - SOUL.md
-  when: moltbook_api_key | default('') | length > 0
+  when: moltbook_telegram_bottoken | default('') | length > 0
 
 # ── Phase 4: Gateway Token ────────────────────────────────────────────────────
 
@@ -585,7 +585,7 @@
     remote_src: true
   when:
     - scripts_repo_slug | default('') | length > 0
-    - moltbook_api_key | default('') | length > 0
+    - moltbook_telegram_bottoken | default('') | length > 0
 
 # ── Phase 9e: Cron Jobs ────────────────────────────────────────────────────────
 
