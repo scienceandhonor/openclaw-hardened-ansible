@@ -38,7 +38,7 @@ result=$(openclaw cron add --cron "$cron_expr" --message "$msg" --announce --cha
 }
 
 # Log to reminders.md (create file if it doesn't exist).
-log_file="$HOME/clawd/reminders.md"
+log_file="$HOME/workspace/reminders.md"
 mkdir -p "$(dirname "$log_file")"
 echo "- [recurring] $(date --iso-8601=seconds) | cron '$cron_expr' | $msg" >> "$log_file"
 

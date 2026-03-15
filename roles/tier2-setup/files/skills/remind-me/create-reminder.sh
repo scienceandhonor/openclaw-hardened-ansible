@@ -47,7 +47,7 @@ result=$(openclaw cron add --at "$iso_time" --message "$msg" --announce --channe
 }
 
 # Log to reminders.md (create file if it doesn't exist).
-log_file="$HOME/clawd/reminders.md"
+log_file="$HOME/workspace/reminders.md"
 mkdir -p "$(dirname "$log_file")"
 echo "- [scheduled] $(date --iso-8601=seconds) | at $iso_time | $msg" >> "$log_file"
 

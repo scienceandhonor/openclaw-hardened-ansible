@@ -21,14 +21,14 @@ should be passed exactly as the user stated it — GNU `date -d` handles natural
 on Ubuntu/Debian.
 
 ```
-bash ~/clawd/skills/remind-me/create-reminder.sh "<message>" "<time expression>"
+bash ~/workspace/skills/remind-me/create-reminder.sh "<message>" "<time expression>"
 ```
 
 Examples:
 ```
-bash ~/clawd/skills/remind-me/create-reminder.sh "take medication" "in 30 minutes"
-bash ~/clawd/skills/remind-me/create-reminder.sh "call the dentist" "tomorrow at 9am"
-bash ~/clawd/skills/remind-me/create-reminder.sh "send weekly report" "next Friday at 5pm"
+bash ~/workspace/skills/remind-me/create-reminder.sh "take medication" "in 30 minutes"
+bash ~/workspace/skills/remind-me/create-reminder.sh "call the dentist" "tomorrow at 9am"
+bash ~/workspace/skills/remind-me/create-reminder.sh "send weekly report" "next Friday at 5pm"
 ```
 
 The script returns the scheduled time and job ID on success. Confirm to the user with
@@ -40,14 +40,14 @@ Call `create-recurring.sh` with the message and a cron expression (5-field stand
 cron). Convert natural language to cron before calling.
 
 ```
-bash ~/clawd/skills/remind-me/create-recurring.sh "<message>" "<cron expression>"
+bash ~/workspace/skills/remind-me/create-recurring.sh "<message>" "<cron expression>"
 ```
 
 Examples:
 ```
-bash ~/clawd/skills/remind-me/create-recurring.sh "check email" "0 8 * * 1-5"
-bash ~/clawd/skills/remind-me/create-recurring.sh "drink water" "0 * * * *"
-bash ~/clawd/skills/remind-me/create-recurring.sh "weekly report" "0 17 * * 5"
+bash ~/workspace/skills/remind-me/create-recurring.sh "check email" "0 8 * * 1-5"
+bash ~/workspace/skills/remind-me/create-recurring.sh "drink water" "0 * * * *"
+bash ~/workspace/skills/remind-me/create-recurring.sh "weekly report" "0 17 * * 5"
 ```
 
 Confirm the schedule back to the user in plain language (e.g. "Set: every weekday at
@@ -67,8 +67,8 @@ openclaw cron rm <jobId>
 
 ## Log
 
-Every scheduled reminder is appended to `$HOME/clawd/reminders.md`. You can show the
+Every scheduled reminder is appended to `$HOME/workspace/reminders.md`. You can show the
 user the log with:
 ```
-cat ~/clawd/reminders.md
+cat ~/workspace/reminders.md
 ```

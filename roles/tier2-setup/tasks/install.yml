@@ -60,7 +60,7 @@
     - { path: "{{ openclaw_home }}/.openclaw",                          mode: '0700' }
     - { path: "{{ openclaw_home }}/.openclaw/credentials",              mode: '0700' }
     - { path: "{{ openclaw_home }}/workspace",                          mode: '0755' }
-    - { path: "{{ openclaw_home }}/clawd",                              mode: '0700' }
+    - { path: "{{ openclaw_home }}/workspace/skills",                   mode: '0755' }
 
 - name: Create ThePincerMove digest agent workspace
   file:
@@ -867,7 +867,7 @@
 
 - name: Create remind-me skill directory
   file:
-    path: "{{ openclaw_home }}/clawd/skills/remind-me"
+    path: "{{ openclaw_home }}/workspace/skills/remind-me"
     state: directory
     owner: "{{ openclaw_user }}"
     group: "{{ openclaw_user }}"
@@ -876,7 +876,7 @@
 - name: Deploy remind-me skill files
   copy:
     src: "skills/remind-me/{{ item }}"
-    dest: "{{ openclaw_home }}/clawd/skills/remind-me/{{ item }}"
+    dest: "{{ openclaw_home }}/workspace/skills/remind-me/{{ item }}"
     owner: "{{ openclaw_user }}"
     mode: '0755'
   loop:
@@ -890,7 +890,7 @@
 
 - name: Create xurl skill directory
   file:
-    path: "{{ openclaw_home }}/clawd/skills/xurl"
+    path: "{{ openclaw_home }}/workspace/skills/xurl"
     state: directory
     owner: "{{ openclaw_user }}"
     group: "{{ openclaw_user }}"
@@ -900,7 +900,7 @@
 - name: Deploy xurl skill file
   copy:
     src: "skills/xurl/SKILL.md"
-    dest: "{{ openclaw_home }}/clawd/skills/xurl/SKILL.md"
+    dest: "{{ openclaw_home }}/workspace/skills/xurl/SKILL.md"
     owner: "{{ openclaw_user }}"
     mode: '0644'
   when: xurl_credentials is defined
