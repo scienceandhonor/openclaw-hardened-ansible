@@ -34,7 +34,7 @@ show_help() {
   --moltbook-api-key KEY  Moltbook API key for Sociaclamp (deploys Sociaclamp subagent — requires --scripts-repo)
   --moltbook-agent-name N Agent name on Moltbook (default: Sociaclamp)
   --anthropic-api-key KEY Anthropic API key for Sociaclamp's Claude Sonnet 4.6 model
-  --molt-telegram-bottoken T  Telegram bot token for Sociaclamp's own bot
+  --moltbook-telegram-bottoken T  Telegram bot token for Sociaclamp's own bot
   --vault-file FILE     Ansible Vault-encrypted vars file (e.g. vault-xurl.yml)"
     echo "  --vault-password PASS Vault password (for non-interactive deploys)"
     echo "  --reset-xurl-token    Overwrite ~/.xurl on VPS with vault copy (use when token is broken)"
@@ -76,7 +76,7 @@ MOLT_AGENT_NAME=""
 MOLTBOOK_API_KEY=""
 MOLTBOOK_AGENT_NAME=""
 ANTHROPIC_API_KEY=""
-MOLT_TELEGRAM_BOTTOKEN=""
+MOLTBOOK_TELEGRAM_BOTTOKEN=""
 
 # Normalize --flag=value into --flag value so both forms work
 _ARGS=()
@@ -121,7 +121,7 @@ while [[ "$#" -gt 0 ]]; do
         --moltbook-api-key) MOLTBOOK_API_KEY="$2"; shift ;;
         --moltbook-agent-name) MOLTBOOK_AGENT_NAME="$2"; shift ;;
         --anthropic-api-key) ANTHROPIC_API_KEY="$2"; shift ;;
-        --molt-telegram-bottoken) MOLT_TELEGRAM_BOTTOKEN="$2"; shift ;;
+        --moltbook-telegram-bottoken) MOLTBOOK_TELEGRAM_BOTTOKEN="$2"; shift ;;
         --vault-file) VAULT_FILE="$2"; shift ;;
         --vault-password) VAULT_PASSWORD="$2"; shift ;;
         -h|--help) show_help; exit 0 ;;
@@ -367,7 +367,7 @@ if [ -n "$ANTHROPIC_API_KEY" ]; then
 else
     echo "Anthropic: not configured"
 fi
-if [ -n "$MOLT_TELEGRAM_BOTTOKEN" ]; then
+if [ -n "$MOLTBOOK_TELEGRAM_BOTTOKEN" ]; then
     echo "Molt bot:  Sociaclamp token=***"
 else
     echo "Molt bot:  not configured"
@@ -454,8 +454,8 @@ print(json.dumps({
     'moltbook_api_key':      sys.argv[22],
     'moltbook_agent_name':   sys.argv[23],
     'anthropic_api_key':     sys.argv[24],
-    'molt_telegram_bottoken': sys.argv[25],
-}))" "$LLM_PROVIDER" "$LLM_MODEL" "$LLM_URL" "$LLM_KEY" "$TELEGRAM_USERID" "$TELEGRAM_BOTTOKEN" "$BRAVE_KEY" "$LASTFM_KEY" "$LASTFM_USERNAME" "$SCRIPTS_REPO" "$EMAIL_IMAP_HOST" "$EMAIL_IMAP_USER" "$EMAIL_IMAP_PASSWORD" "$EMAIL_FOLDER" "$RP_TELEGRAM_BOTTOKEN" "$REDDIT_ENABLED" "$RESET_XURL_TOKEN" "$GEMINI_KEY" "$OPENROUTER_KEY" "$MOLT_API_KEY" "$MOLT_AGENT_NAME" "$MOLTBOOK_API_KEY" "$MOLTBOOK_AGENT_NAME" "$ANTHROPIC_API_KEY" "$MOLT_TELEGRAM_BOTTOKEN")
+    'moltbook_telegram_bottoken': sys.argv[25],
+}))" "$LLM_PROVIDER" "$LLM_MODEL" "$LLM_URL" "$LLM_KEY" "$TELEGRAM_USERID" "$TELEGRAM_BOTTOKEN" "$BRAVE_KEY" "$LASTFM_KEY" "$LASTFM_USERNAME" "$SCRIPTS_REPO" "$EMAIL_IMAP_HOST" "$EMAIL_IMAP_USER" "$EMAIL_IMAP_PASSWORD" "$EMAIL_FOLDER" "$RP_TELEGRAM_BOTTOKEN" "$REDDIT_ENABLED" "$RESET_XURL_TOKEN" "$GEMINI_KEY" "$OPENROUTER_KEY" "$MOLT_API_KEY" "$MOLT_AGENT_NAME" "$MOLTBOOK_API_KEY" "$MOLTBOOK_AGENT_NAME" "$ANTHROPIC_API_KEY" "$MOLTBOOK_TELEGRAM_BOTTOKEN")
 
 # Run Playbook
 ansible-playbook -i "$TEMP_INVENTORY" playbook-tier2.yml $ANSIBLE_ARGS \
