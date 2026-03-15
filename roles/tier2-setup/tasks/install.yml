@@ -1561,14 +1561,7 @@
             'wakeMode':      'now',
             'payload':       {
                 'kind':    'agentTurn',
-                'message': (
-                    'Update ~/workspace-sociaclamps/context.json with current topics, mood, and anything '
-                    "you'd like the Moltbook agent to know about your world right now. "
-                    'Overwrite the entire file with a fresh JSON object — never read it first. '
-                    'Do not read any other files in ~/workspace-sociaclamps/. '
-                    'Schema: {"updated_at": "ISO timestamp", "current_events": [...], '
-                    '"human_notes": "...", "mood": "...", "topics_of_interest": [...], "do_not_discuss": []}'
-                )
+                'message': 'Follow the instructions in {{ openclaw_home }}/scripts/moltbook-context-prompt.txt'
             },
             'delivery':      {'mode': 'none'}
         })
@@ -1626,11 +1619,7 @@
             'agentId':       'sociaclamps',
             'payload':       {
                 'kind':    'agentTurn',
-                'message': (
-                    'Run your Moltbook heartbeat. '
-                    'Read ~/workspace-sociaclamps/context.json for current context, '
-                    'then follow ~/workspace-sociaclamps/skills/moltbook/HEARTBEAT.md.'
-                )
+                'message': 'Follow the instructions in {{ openclaw_home }}/scripts/moltbook-heartbeat-prompt.txt'
             },
             'delivery':      {'mode': 'none'}
         })
