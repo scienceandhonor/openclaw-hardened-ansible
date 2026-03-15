@@ -31,10 +31,10 @@ show_help() {
   --openrouter-key KEY  OpenRouter API key (enables OpenRouter models e.g. for PincerMove agent)"
     echo "  --molt-api-key KEY    Church of Molt API key (deploys crustafarianism skill — requires --scripts-repo)
   --molt-agent-name N   Agent name recorded in Molt credentials (default: Agent)
-  --moltbook-api-key KEY  Moltbook API key for Sociaclamp (deploys Sociaclamp subagent — requires --scripts-repo)
-  --moltbook-agent-name N Agent name on Moltbook (default: Sociaclamp)
-  --anthropic-api-key KEY Anthropic API key for Sociaclamp's Claude Sonnet 4.6 model
-  --moltbook-telegram-bottoken T  Telegram bot token for Sociaclamp's own bot
+  --moltbook-api-key KEY  Moltbook API key for Sociaclamps (deploys Sociaclamps subagent — requires --scripts-repo)
+  --moltbook-agent-name N Agent name on Moltbook (default: Sociaclamps)
+  --anthropic-api-key KEY Anthropic API key for Sociaclamps's Claude Sonnet 4.6 model
+  --moltbook-telegram-bottoken T  Telegram bot token for Sociaclamps's own bot
   --vault-file FILE     Ansible Vault-encrypted vars file (e.g. vault-xurl.yml)"
     echo "  --vault-password PASS Vault password (for non-interactive deploys)"
     echo "  --reset-xurl-token    Overwrite ~/.xurl on VPS with vault copy (use when token is broken)"
@@ -358,17 +358,17 @@ else
     echo "OpenRouter: not configured"
 fi
 if [ -n "$MOLTBOOK_API_KEY" ]; then
-    echo "Moltbook:  Sociaclamp agent (key=***)"
+    echo "Moltbook:  Sociaclamps agent (key=***)"
 else
     echo "Moltbook:  not configured"
 fi
 if [ -n "$ANTHROPIC_API_KEY" ]; then
-    echo "Anthropic: Sociaclamp model key=***"
+    echo "Anthropic: Sociaclamps model key=***"
 else
     echo "Anthropic: not configured"
 fi
 if [ -n "$MOLTBOOK_TELEGRAM_BOTTOKEN" ]; then
-    echo "Molt bot:  Sociaclamp token=***"
+    echo "Molt bot:  Sociaclamps token=***"
 else
     echo "Molt bot:  not configured"
 fi
