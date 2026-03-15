@@ -1556,7 +1556,7 @@
             'jobId':         job_id,
             'name':          'Moltbook context update',
             'enabled':       True,
-            'schedule':      {'kind': 'cron', 'expr': '30 */4 * * *', 'staggerMs': 0},
+            'schedule':      {'kind': 'cron', 'expr': '0 */4 * * *', 'staggerMs': 0},
             'sessionTarget': 'isolated',
             'wakeMode':      'now',
             'payload':       {
@@ -1613,7 +1613,7 @@
             'jobId':         job_id,
             'name':          'Moltbook heartbeat',
             'enabled':       True,
-            'schedule':      {'kind': 'cron', 'expr': '0 */4 * * *', 'staggerMs': 0},
+            'schedule':      {'kind': 'cron', 'expr': '30 */4 * * *', 'staggerMs': 0},
             'sessionTarget': 'isolated',
             'wakeMode':      'now',
             'agentId':       'sociaclamps',
