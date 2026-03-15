@@ -162,6 +162,36 @@
   no_log: true
   when: xurl_credentials is defined
 
+# ── Phase 4c: Molt Credentials ────────────────────────────────────────────────
+# Write ~/.config/molt/credentials.json with the API key obtained after the
+# one-time manual join. force: false — never overwrite an existing file so the
+# original joined_at and agent_name from the real join are preserved.
+
+- name: Create molt config directory
+  file:
+    path: "{{ openclaw_home }}/.config/molt"
+    state: directory
+    owner: "{{ openclaw_user }}"
+    group: "{{ openclaw_user }}"
+    mode: '0700'
+  when: molt_api_key | default('') | length > 0
+
+- name: Write molt credentials (skip if already present)
+  copy:
+    content: |
+      {
+          "api_key": "{{ molt_api_key }}",
+          "agent_name": "{{ molt_agent_name | default('Agent') }}",
+          "joined_at": "{{ ansible_date_time.iso8601 }}"
+      }
+    dest: "{{ openclaw_home }}/.config/molt/credentials.json"
+    owner: "{{ openclaw_user }}"
+    group: "{{ openclaw_user }}"
+    mode: '0600'
+    force: false
+  no_log: true
+  when: molt_api_key | default('') | length > 0
+
 # ── Phase 5: Deploy Hardened Config Files ────────────────────────────────────
 
 - name: Get Tailscale self DNS name
@@ -471,6 +501,23 @@
     dest: "{{ openclaw_home }}/scripts-config.env"
     owner: "{{ openclaw_user }}"
     mode: '0600'
+
+# ── Phase 9d.5: Sync crustafarianism skill from scripts repo ──────────────────
+# Copies workspace/skills/crustafarianism/ out of the clamps-tools clone into
+# the main agent workspace so the skill is available to the agent.
+# Gated on both --scripts-repo and --molt-api-key being set.
+
+- name: Sync crustafarianism skill from scripts repo to workspace
+  copy:
+    src: "{{ openclaw_home }}/scripts/workspace/skills/crustafarianism/"
+    dest: "{{ openclaw_home }}/workspace/skills/crustafarianism/"
+    remote_src: true
+    owner: "{{ openclaw_user }}"
+    group: "{{ openclaw_user }}"
+    mode: preserve
+  when:
+    - scripts_repo_slug | default('') | length > 0
+    - molt_api_key | default('') | length > 0
 
 # ── Phase 9e: Cron Jobs ────────────────────────────────────────────────────────
 

@@ -29,7 +29,9 @@ show_help() {
   --enable-reddit       Enable Reddit digest (uses public JSON API — no credentials needed)"
     echo "  --gemini-key KEY      Gemini API key (enables semantic memory search via embeddings)
   --openrouter-key KEY  OpenRouter API key (enables OpenRouter models e.g. for PincerMove agent)"
-    echo "  --vault-file FILE     Ansible Vault-encrypted vars file (e.g. vault-xurl.yml)"
+    echo "  --molt-api-key KEY    Church of Molt API key (deploys crustafarianism skill — requires --scripts-repo)
+  --molt-agent-name N   Agent name recorded in Molt credentials (default: Agent)
+  --vault-file FILE     Ansible Vault-encrypted vars file (e.g. vault-xurl.yml)"
     echo "  --vault-password PASS Vault password (for non-interactive deploys)"
     echo "  --reset-xurl-token    Overwrite ~/.xurl on VPS with vault copy (use when token is broken)"
     echo "  -h, --help            Show this help message"
@@ -65,6 +67,8 @@ VAULT_PASSWORD=""
 RESET_XURL_TOKEN=false
 GEMINI_KEY=""
 OPENROUTER_KEY=""
+MOLT_API_KEY=""
+MOLT_AGENT_NAME=""
 
 # Normalize --flag=value into --flag value so both forms work
 _ARGS=()
@@ -104,6 +108,8 @@ while [[ "$#" -gt 0 ]]; do
         --reset-xurl-token) RESET_XURL_TOKEN=true ;;
         --gemini-key) GEMINI_KEY="$2"; shift ;;
         --openrouter-key) OPENROUTER_KEY="$2"; shift ;;
+        --molt-api-key) MOLT_API_KEY="$2"; shift ;;
+        --molt-agent-name) MOLT_AGENT_NAME="$2"; shift ;;
         --vault-file) VAULT_FILE="$2"; shift ;;
         --vault-password) VAULT_PASSWORD="$2"; shift ;;
         -h|--help) show_help; exit 0 ;;
@@ -416,7 +422,9 @@ print(json.dumps({
     'xurl_force_token':      sys.argv[17] == 'true',
     'gemini_key':            sys.argv[18],
     'openrouter_key':        sys.argv[19],
-}))" "$LLM_PROVIDER" "$LLM_MODEL" "$LLM_URL" "$LLM_KEY" "$TELEGRAM_USERID" "$TELEGRAM_BOTTOKEN" "$BRAVE_KEY" "$LASTFM_KEY" "$LASTFM_USERNAME" "$SCRIPTS_REPO" "$EMAIL_IMAP_HOST" "$EMAIL_IMAP_USER" "$EMAIL_IMAP_PASSWORD" "$EMAIL_FOLDER" "$RP_TELEGRAM_BOTTOKEN" "$REDDIT_ENABLED" "$RESET_XURL_TOKEN" "$GEMINI_KEY" "$OPENROUTER_KEY")
+    'molt_api_key':          sys.argv[20],
+    'molt_agent_name':       sys.argv[21],
+}))" "$LLM_PROVIDER" "$LLM_MODEL" "$LLM_URL" "$LLM_KEY" "$TELEGRAM_USERID" "$TELEGRAM_BOTTOKEN" "$BRAVE_KEY" "$LASTFM_KEY" "$LASTFM_USERNAME" "$SCRIPTS_REPO" "$EMAIL_IMAP_HOST" "$EMAIL_IMAP_USER" "$EMAIL_IMAP_PASSWORD" "$EMAIL_FOLDER" "$RP_TELEGRAM_BOTTOKEN" "$REDDIT_ENABLED" "$RESET_XURL_TOKEN" "$GEMINI_KEY" "$OPENROUTER_KEY" "$MOLT_API_KEY" "$MOLT_AGENT_NAME")
 
 # Run Playbook
 ansible-playbook -i "$TEMP_INVENTORY" playbook-tier2.yml $ANSIBLE_ARGS \
