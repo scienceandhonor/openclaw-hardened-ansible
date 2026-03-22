@@ -154,7 +154,7 @@
     - "{{ openclaw_home }}/stoic-state"
   when: stoic_telegram_bottoken | default('') | length > 0
 
-- name: Deploy Seneclaw workspace files (AGENTS.md, SOUL.md, PHILOSOPHY.md, USER_PROGRESS.md)
+- name: Deploy Seneclaw workspace files (AGENTS.md, SOUL.md, PHILOSOPHY.md)
   copy:
     src: "workspace-seneclaw/{{ item }}"
     dest: "{{ openclaw_home }}/workspace-seneclaw/{{ item }}"
@@ -166,7 +166,19 @@
     - AGENTS.md
     - SOUL.md
     - PHILOSOPHY.md
-    - USER_PROGRESS.md
+  when: stoic_telegram_bottoken | default('') | length > 0
+
+- name: Deploy Seneclaw memory stub files (ingo-profile.md, ingo-sessions.md)
+  copy:
+    src: "workspace-seneclaw/memory/{{ item }}"
+    dest: "{{ openclaw_home }}/workspace-seneclaw/memory/{{ item }}"
+    owner: "{{ openclaw_user }}"
+    group: "{{ openclaw_user }}"
+    mode: '0644'
+    force: false
+  loop:
+    - ingo-profile.md
+    - ingo-sessions.md
   when: stoic_telegram_bottoken | default('') | length > 0
 
 # ── Phase 4: Gateway Token ────────────────────────────────────────────────────
@@ -1779,7 +1791,7 @@
             'wakeMode':      'now',
             'payload':       {
                 'kind':    'agentTurn',
-                'message': f"Search your memory for the past week's exchanges with this user. Read {home}/workspace-seneclaw/USER_PROGRESS.md. Write a brief Sunday reflection (2-4 sentences) that synthesises what you observed this week — patterns, growth, open threads. Update USER_PROGRESS.md with a one-line session log entry and any new patterns or life context that emerged. Then call: openclaw message send --channel telegram --account seneclaw --to {tg_userid}"
+                'message': f"Search your memory for the past week's exchanges with this user. Read {home}/workspace-seneclaw/memory/ingo-sessions.md and {home}/workspace-seneclaw/memory/ingo-profile.md. Write a brief Sunday reflection (2-4 sentences) that synthesises what you observed this week — patterns, growth, open threads. Append a timestamped entry to ingo-sessions.md and update any stable patterns in ingo-profile.md. Then call: openclaw message send --channel telegram --account seneclaw --to {tg_userid}"
             },
             'delivery': {'mode': 'none'}
         })

@@ -26,13 +26,14 @@ services.
 4. **Keep it brief.** 1–4 sentences per message. Text-from-a-friend tone, not lecture.
 
 5. **Send explicitly.** To deliver a Telegram message, call:
-   `openclaw message send --channel telegram --to <USER_ID>`
+   `openclaw message send --channel telegram --account seneclaw --to <USER_ID>`
    where USER_ID comes from the job prompt's context. Only call this when you decide
    to speak. Do not call it when the silence condition is met.
 
-6. **Update USER_PROGRESS.md** after meaningful exchanges (new insight, new topic,
-   pattern observed). Keep it to bullet points. Do not log every job run — only
-   substantive developments.
+6. **Update memory after meaningful exchanges** (new insight, new topic, pattern
+   observed). Append a timestamped entry to `~/workspace-seneclaw/memory/ingo-sessions.md`
+   and update stable patterns in `~/workspace-seneclaw/memory/ingo-profile.md`.
+   Do not log every job run — only substantive developments.
 
 ## Tools
 
@@ -45,4 +46,5 @@ Denied: `browser`, `process`, `edit`, `apply_patch`, `gateway`, `canvas`
 - `~/stoic-state/daily-theme.json` — today's theme (written by system cron at 06:55 UTC)
 - `~/workspace-seneclaw/SOUL.md` — your personality and anti-patterns
 - `~/workspace-seneclaw/PHILOSOPHY.md` — Stoic reference card
-- `~/workspace-seneclaw/USER_PROGRESS.md` — longitudinal coaching log (update after sessions)
+- `~/workspace-seneclaw/memory/ingo-profile.md` — stable user profile (core patterns, what helps, what blocks, themes to revisit)
+- `~/workspace-seneclaw/memory/ingo-sessions.md` — chronological session log (append-only; one entry per meaningful session)
