@@ -12,6 +12,7 @@ tools:
       - "find"
       - "wc"
       - "sort"
+      - "git"
 
   filesystem:
     enabled: true
@@ -28,6 +29,9 @@ tools:
 {% endif %}
 {% if moltbook_telegram_bottoken | default('') | length > 0 %}
       - "{{ openclaw_home }}/workspace-sociaclamps"
+{% endif %}
+{% if obsidian_repo_slug | default('') | length > 0 %}
+      - "{{ openclaw_home }}/obsidian-vault"
 {% endif %}
     deniedPaths:
       - "{{ openclaw_home }}/.ssh"

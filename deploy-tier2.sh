@@ -36,6 +36,7 @@ show_help() {
   --anthropic-api-key KEY Anthropic API key for Sociaclamps's Claude Sonnet 4.6 model
   --moltbook-telegram-bottoken T  Telegram bot token for Sociaclamps's own bot
   --stoic-telegram-bottoken T  Telegram bot token for Seneclaw Stoic coaching bot
+  --obsidian-repo SLUG  GitHub repo slug for Obsidian vault (e.g. ocuser/my-vault)
   --vault-file FILE     Ansible Vault-encrypted vars file (e.g. vault-xurl.yml)"
     echo "  --vault-password PASS Vault password (for non-interactive deploys)"
     echo "  --reset-xurl-token    Overwrite ~/.xurl on VPS with vault copy (use when token is broken)"
@@ -79,6 +80,7 @@ MOLTBOOK_AGENT_NAME=""
 ANTHROPIC_API_KEY=""
 MOLTBOOK_TELEGRAM_BOTTOKEN=""
 STOIC_TELEGRAM_BOTTOKEN=""
+OBSIDIAN_REPO=""
 
 # Normalize --flag=value into --flag value so both forms work
 _ARGS=()
@@ -125,6 +127,7 @@ while [[ "$#" -gt 0 ]]; do
         --anthropic-api-key) ANTHROPIC_API_KEY="$2"; shift ;;
         --moltbook-telegram-bottoken) MOLTBOOK_TELEGRAM_BOTTOKEN="$2"; shift ;;
         --stoic-telegram-bottoken) STOIC_TELEGRAM_BOTTOKEN="$2"; shift ;;
+        --obsidian-repo) OBSIDIAN_REPO="$2"; shift ;;
         --vault-file) VAULT_FILE="$2"; shift ;;
         --vault-password) VAULT_PASSWORD="$2"; shift ;;
         -h|--help) show_help; exit 0 ;;
@@ -385,6 +388,11 @@ if [ -n "$STOIC_TELEGRAM_BOTTOKEN" ]; then
 else
     echo "Stoic bot: not configured"
 fi
+if [ -n "$OBSIDIAN_REPO" ]; then
+    echo "Obsidian:  $OBSIDIAN_REPO (r/w deploy key)"
+else
+    echo "Obsidian:  not configured"
+fi
 if [ -n "$VAULT_FILE" ]; then
     echo "Vault:     $VAULT_FILE"
 fi
@@ -469,7 +477,8 @@ print(json.dumps({
     'anthropic_api_key':     sys.argv[24],
     'moltbook_telegram_bottoken': sys.argv[25],
     'stoic_telegram_bottoken': sys.argv[26],
-}))" "$LLM_PROVIDER" "$LLM_MODEL" "$LLM_URL" "$LLM_KEY" "$TELEGRAM_USERID" "$TELEGRAM_BOTTOKEN" "$BRAVE_KEY" "$LASTFM_KEY" "$LASTFM_USERNAME" "$SCRIPTS_REPO" "$EMAIL_IMAP_HOST" "$EMAIL_IMAP_USER" "$EMAIL_IMAP_PASSWORD" "$EMAIL_FOLDER" "$RP_TELEGRAM_BOTTOKEN" "$REDDIT_ENABLED" "$RESET_XURL_TOKEN" "$GEMINI_KEY" "$OPENROUTER_KEY" "$MOLT_API_KEY" "$MOLT_AGENT_NAME" "$MOLTBOOK_API_KEY" "$MOLTBOOK_AGENT_NAME" "$ANTHROPIC_API_KEY" "$MOLTBOOK_TELEGRAM_BOTTOKEN" "$STOIC_TELEGRAM_BOTTOKEN")
+    'obsidian_repo_slug':      sys.argv[27],
+}))" "$LLM_PROVIDER" "$LLM_MODEL" "$LLM_URL" "$LLM_KEY" "$TELEGRAM_USERID" "$TELEGRAM_BOTTOKEN" "$BRAVE_KEY" "$LASTFM_KEY" "$LASTFM_USERNAME" "$SCRIPTS_REPO" "$EMAIL_IMAP_HOST" "$EMAIL_IMAP_USER" "$EMAIL_IMAP_PASSWORD" "$EMAIL_FOLDER" "$RP_TELEGRAM_BOTTOKEN" "$REDDIT_ENABLED" "$RESET_XURL_TOKEN" "$GEMINI_KEY" "$OPENROUTER_KEY" "$MOLT_API_KEY" "$MOLT_AGENT_NAME" "$MOLTBOOK_API_KEY" "$MOLTBOOK_AGENT_NAME" "$ANTHROPIC_API_KEY" "$MOLTBOOK_TELEGRAM_BOTTOKEN" "$STOIC_TELEGRAM_BOTTOKEN" "$OBSIDIAN_REPO")
 
 # Run Playbook
 ansible-playbook -i "$TEMP_INVENTORY" playbook-tier2.yml $ANSIBLE_ARGS \

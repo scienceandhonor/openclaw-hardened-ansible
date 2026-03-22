@@ -1883,6 +1883,151 @@
   when: moltbook_api_key | default('') | length > 0
   notify: Restart OpenClaw
 
+# ── Phase 9s: Obsidian Vault Sync (git-backed, r/w) ──────────────────────────
+# Gated on obsidian_repo_slug being set (--obsidian-repo user/vault).
+# Mirrors the scripts-repo deploy key pattern (Phase 9a/9b/9c) but with r/w access.
+# Vault cloned to ~/obsidian-vault/ and kept in sync via hourly system cron.
+
+- name: Check if obsidian deploy key exists
+  stat:
+    path: "{{ openclaw_home }}/.ssh/openclaw-obsidian-deploy"
+  register: obsidian_deploy_key_stat
+  when: obsidian_repo_slug | default('') | length > 0
+
+- name: Generate SSH deploy key for obsidian vault
+  command: >
+    ssh-keygen -t ed25519 -f "{{ openclaw_home }}/.ssh/openclaw-obsidian-deploy"
+    -C "openclaw-obsidian-rw" -N ""
+  become_user: "{{ openclaw_user }}"
+  when: obsidian_repo_slug | default('') | length > 0 and not obsidian_deploy_key_stat.stat.exists
+
+- name: Read obsidian deploy key public key
+  slurp:
+    src: "{{ openclaw_home }}/.ssh/openclaw-obsidian-deploy.pub"
+  register: obsidian_deploy_pub_key
+  when: obsidian_repo_slug | default('') | length > 0 and not obsidian_deploy_key_stat.stat.exists
+
+- name: Pause — add obsidian deploy key to GitHub before continuing
+  pause:
+    prompt: |2+
+
+      ============================================================
+      New SSH deploy key generated for {{ obsidian_repo_slug }}
+
+      Add this as a READ/WRITE deploy key in GitHub:
+      {{ obsidian_repo_slug }} → Settings → Deploy keys → Add
+      (check "Allow write access")
+
+      {{ obsidian_deploy_pub_key.content | b64decode | trim }}
+
+      ============================================================
+      Press Enter once the deploy key has been added to GitHub
+  when: obsidian_repo_slug | default('') | length > 0 and not obsidian_deploy_key_stat.stat.exists
+
+- name: Write SSH config stanza for obsidian deploy key
+  blockinfile:
+    path: "{{ openclaw_home }}/.ssh/config"
+    marker: "# {mark} obsidian vault deploy key"
+    block: |
+      Host github-obsidian-vault
+          HostName github.com
+          User git
+          IdentityFile ~/.ssh/openclaw-obsidian-deploy
+          IdentitiesOnly yes
+    create: true
+    owner: "{{ openclaw_user }}"
+    mode: '0600'
+  when: obsidian_repo_slug | default('') | length > 0
+
+- name: Check if obsidian vault already cloned
+  stat:
+    path: "{{ openclaw_home }}/obsidian-vault/.git"
+  register: obsidian_git_stat
+  when: obsidian_repo_slug | default('') | length > 0
+
+- name: Clone obsidian vault (first deploy)
+  command: >
+    git clone git@github-obsidian-vault:{{ obsidian_repo_slug }}.git
+    {{ openclaw_home }}/obsidian-vault
+  become_user: "{{ openclaw_user }}"
+  environment:
+    HOME: "{{ openclaw_home }}"
+    GIT_SSH_COMMAND: "ssh -F {{ openclaw_home }}/.ssh/config"
+  when: obsidian_repo_slug | default('') | length > 0 and not obsidian_git_stat.stat.exists
+
+- name: Pull latest obsidian vault (re-deploy)
+  command: git -C {{ openclaw_home }}/obsidian-vault pull
+  become_user: "{{ openclaw_user }}"
+  environment:
+    HOME: "{{ openclaw_home }}"
+    GIT_SSH_COMMAND: "ssh -F {{ openclaw_home }}/.ssh/config"
+  when: obsidian_repo_slug | default('') | length > 0 and obsidian_git_stat.stat.exists
+
+- name: Check for .obsidian/ tracked in vault git repo
+  command: git -C {{ openclaw_home }}/obsidian-vault ls-files .obsidian/
+  register: obsidian_tracked
+  become_user: "{{ openclaw_user }}"
+  changed_when: false
+  failed_when: false
+  when: obsidian_repo_slug | default('') | length > 0
+
+- name: Warn if .obsidian/ is tracked in vault git repo
+  debug:
+    msg: >
+      WARNING: .obsidian/ is tracked in the vault repo. Add workspace.json,
+      workspace-mobile.json, and cache to .gitignore to avoid sync conflicts
+      between agent commits and Obsidian app edits on Mac/Android.
+  when: obsidian_repo_slug | default('') | length > 0 and obsidian_tracked.stdout | default('') | length > 0
+
+- name: Create obsidian skill directory
+  file:
+    path: "{{ openclaw_home }}/workspace/skills/obsidian"
+    state: directory
+    owner: "{{ openclaw_user }}"
+    mode: '0755'
+  when: obsidian_repo_slug | default('') | length > 0
+
+- name: Deploy obsidian SKILL.md
+  copy:
+    src: skills/obsidian/SKILL.md
+    dest: "{{ openclaw_home }}/workspace/skills/obsidian/SKILL.md"
+    owner: "{{ openclaw_user }}"
+    mode: '0644'
+    force: false
+  when: obsidian_repo_slug | default('') | length > 0
+
+- name: Hourly obsidian vault pull (system cron, :05)
+  cron:
+    name: "obsidian vault pull"
+    minute: "5"
+    hour: "*"
+    job: >-
+      GIT_SSH_COMMAND="ssh -i ~/.ssh/openclaw-obsidian-deploy -F ~/.ssh/config"
+      git -C ~/obsidian-vault pull --ff-only origin main
+      >> ~/obsidian-vault-sync.log 2>&1;
+      tail -c 524288 ~/obsidian-vault-sync.log > ~/obsidian-vault-sync.log.tmp
+      && mv ~/obsidian-vault-sync.log.tmp ~/obsidian-vault-sync.log
+    user: "{{ openclaw_user }}"
+    state: "{{ 'present' if obsidian_repo_slug | default('') | length > 0 else 'absent' }}"
+
+- name: Hourly obsidian vault auto-commit-push (system cron, :20)
+  cron:
+    name: "obsidian vault push"
+    minute: "20"
+    hour: "*"
+    job: >-
+      cd ~/obsidian-vault &&
+      git add . &&
+      git diff --cached --quiet ||
+      (git commit -m "auto: agent sync" &&
+      GIT_SSH_COMMAND="ssh -i ~/.ssh/openclaw-obsidian-deploy -F ~/.ssh/config"
+      git push)
+      >> ~/obsidian-vault-sync.log 2>&1;
+      tail -c 524288 ~/obsidian-vault-sync.log > ~/obsidian-vault-sync.log.tmp
+      && mv ~/obsidian-vault-sync.log.tmp ~/obsidian-vault-sync.log
+    user: "{{ openclaw_user }}"
+    state: "{{ 'present' if obsidian_repo_slug | default('') | length > 0 else 'absent' }}"
+
 # ── Phase 10: Security Audit ──────────────────────────────────────────────────
 
 - name: Run initial security audit
