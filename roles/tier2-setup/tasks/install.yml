@@ -1728,7 +1728,7 @@
             'wakeMode':      'now',
             'payload':       {
                 'kind':    'agentTurn',
-                'message': f"Read {home}/stoic-state/daily-theme.json to get today's theme. Search your memory for recent conversations with this user. If you sent a message in the last 20 hours, output NOTHING. Otherwise compose a 1-4 sentence opening question or grounded observation based on today's theme and the user's specific context. Then call: openclaw message send --channel telegram --to {tg_userid}"
+                'message': f"Read {home}/stoic-state/daily-theme.json to get today's theme. Search your memory for recent conversations with this user. If you sent a message in the last 20 hours, output NOTHING. Otherwise compose a 1-4 sentence opening question or grounded observation based on today's theme and the user's specific context. Then call: openclaw message send --channel telegram --account seneclaw --to {tg_userid}"
             },
             'delivery': {'mode': 'none'}
         })
@@ -1745,7 +1745,7 @@
             'wakeMode':      'now',
             'payload':       {
                 'kind':    'agentTurn',
-                'message': f"Read {home}/stoic-state/daily-theme.json for today's theme. Search your memory for today's exchanges with this user. If the user has not responded to any message today, output NOTHING. Otherwise compose a brief follow-up question or reflection (1-3 sentences) that builds on what they said. Then call: openclaw message send --channel telegram --to {tg_userid}"
+                'message': f"Read {home}/stoic-state/daily-theme.json for today's theme. Search your memory for today's exchanges with this user. If the user has not responded to any message today, output NOTHING. Otherwise compose a brief follow-up question or reflection (1-3 sentences) that builds on what they said. Then call: openclaw message send --channel telegram --account seneclaw --to {tg_userid}"
             },
             'delivery': {'mode': 'none'}
         })
@@ -1762,7 +1762,7 @@
             'wakeMode':      'now',
             'payload':       {
                 'kind':    'agentTurn',
-                'message': f"Read {home}/stoic-state/daily-theme.json for today's theme. Search your memory for today's exchanges with this user. If the user has had zero engagement today (no messages sent or received), output NOTHING. Otherwise compose a brief evening reflection prompt (1-3 sentences) — something to sit with before sleep, grounded in today's theme or an open thread. Then call: openclaw message send --channel telegram --to {tg_userid}"
+                'message': f"Read {home}/stoic-state/daily-theme.json for today's theme. Search your memory for today's exchanges with this user. If the user has had zero engagement today (no messages sent or received), output NOTHING. Otherwise compose a brief evening reflection prompt (1-3 sentences) — something to sit with before sleep, grounded in today's theme or an open thread. Then call: openclaw message send --channel telegram --account seneclaw --to {tg_userid}"
             },
             'delivery': {'mode': 'none'}
         })
@@ -1779,7 +1779,7 @@
             'wakeMode':      'now',
             'payload':       {
                 'kind':    'agentTurn',
-                'message': f"Search your memory for the past week's exchanges with this user. Read {home}/workspace-seneclaw/USER_PROGRESS.md. Write a brief Sunday reflection (2-4 sentences) that synthesises what you observed this week — patterns, growth, open threads. Update USER_PROGRESS.md with a one-line session log entry and any new patterns or life context that emerged. Then call: openclaw message send --channel telegram --to {tg_userid}"
+                'message': f"Search your memory for the past week's exchanges with this user. Read {home}/workspace-seneclaw/USER_PROGRESS.md. Write a brief Sunday reflection (2-4 sentences) that synthesises what you observed this week — patterns, growth, open threads. Update USER_PROGRESS.md with a one-line session log entry and any new patterns or life context that emerged. Then call: openclaw message send --channel telegram --account seneclaw --to {tg_userid}"
             },
             'delivery': {'mode': 'none'}
         })
@@ -1803,6 +1803,72 @@
   register: seneclaw_cron_result
   changed_when: "'changed' in seneclaw_cron_result.stdout"
   when: stoic_telegram_bottoken | default('') | length > 0
+  notify: Restart OpenClaw
+
+# ── Phase 9r: Sociaclamps memory maintenance cron job ─────────────────────────
+# Weekly Sunday 09:00 UTC — runs the sociaclamps agent with the memory maintenance
+# prompt. No API calls, just file tidying: prune activity.md, graduate durable
+# insights to knowledge.md. Gated on moltbook_api_key.
+# Schedule note: Moltbook heartbeat runs at 08:30 Sunday (30 */4), Seneclaw weekly
+# review at 10:00 Sunday — 09:00 sits cleanly between them.
+
+- name: Configure Sociaclamps memory maintenance job (job-sociaclamps-memory-maintenance)
+  shell: |
+    python3 - <<'PYEOF'
+    import json, os
+
+    jobs_path = os.environ['HOME'] + '/.openclaw/cron/jobs.json'
+    job_id    = 'job-sociaclamps-memory-maintenance'
+    enable    = os.environ.get('MOLTBOOK_ENABLED') == '1'
+
+    os.makedirs(os.path.dirname(jobs_path), exist_ok=True)
+
+    try:
+        with open(jobs_path) as f:
+            store = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        store = {'version': 1, 'jobs': []}
+
+    before = json.dumps(store, sort_keys=True)
+
+    store['jobs'] = [j for j in store['jobs'] if j.get('jobId') != job_id and j.get('id') != job_id]
+
+    if enable:
+        home = os.environ['HOME']
+        store['jobs'].append({
+            'id':            job_id,
+            'jobId':         job_id,
+            'name':          'Sociaclamps memory maintenance',
+            'enabled':       True,
+            'schedule':      {'kind': 'cron', 'expr': '0 9 * * 0', 'staggerMs': 0},
+            'sessionTarget': 'isolated',
+            'wakeMode':      'now',
+            'agentId':       'sociaclamps',
+            'payload':       {
+                'kind':    'agentTurn',
+                'message': f'Follow the instructions in {home}/scripts/sociaclamps-memory-maintenance-prompt.txt'
+            },
+            'delivery':      {'mode': 'none'}
+        })
+
+    after = json.dumps(store, sort_keys=True)
+
+    if before != after:
+        tmp = jobs_path + '.tmp'
+        with open(tmp, 'w') as f:
+            json.dump(store, f, indent=2)
+        os.replace(tmp, jobs_path)
+        print('changed')
+    else:
+        print('ok')
+    PYEOF
+  become_user: "{{ openclaw_user }}"
+  environment:
+    HOME: "{{ openclaw_home }}"
+    MOLTBOOK_ENABLED: "{{ '1' if moltbook_api_key | default('') | length > 0 else '0' }}"
+  register: sociaclamps_memory_maint_result
+  changed_when: "'changed' in sociaclamps_memory_maint_result.stdout"
+  when: moltbook_api_key | default('') | length > 0
   notify: Restart OpenClaw
 
 # ── Phase 10: Security Audit ──────────────────────────────────────────────────
