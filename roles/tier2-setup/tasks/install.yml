@@ -141,6 +141,34 @@
     - SOUL.md
   when: moltbook_telegram_bottoken | default('') | length > 0
 
+- name: Create workspace-seneclaw directories
+  file:
+    path: "{{ item }}"
+    state: directory
+    owner: "{{ openclaw_user }}"
+    group: "{{ openclaw_user }}"
+    mode: '0755'
+  loop:
+    - "{{ openclaw_home }}/workspace-seneclaw"
+    - "{{ openclaw_home }}/workspace-seneclaw/memory"
+    - "{{ openclaw_home }}/stoic-state"
+  when: stoic_telegram_bottoken | default('') | length > 0
+
+- name: Deploy Seneclaw workspace files (AGENTS.md, SOUL.md, PHILOSOPHY.md, USER_PROGRESS.md)
+  copy:
+    src: "workspace-seneclaw/{{ item }}"
+    dest: "{{ openclaw_home }}/workspace-seneclaw/{{ item }}"
+    owner: "{{ openclaw_user }}"
+    group: "{{ openclaw_user }}"
+    mode: '0644'
+    force: false
+  loop:
+    - AGENTS.md
+    - SOUL.md
+    - PHILOSOPHY.md
+    - USER_PROGRESS.md
+  when: stoic_telegram_bottoken | default('') | length > 0
+
 # ── Phase 4: Gateway Token ────────────────────────────────────────────────────
 
 - name: Check if gateway token already exists
@@ -1642,6 +1670,139 @@
   register: moltbook_heartbeat_job
   changed_when: "'changed' in moltbook_heartbeat_job.stdout"
   when: moltbook_api_key | default('') | length > 0
+  notify: Restart OpenClaw
+
+# ── Phase 9q: Seneclaw Stoic coaching cron jobs ───────────────────────────────
+# Four proactive coaching sessions per day (morning seed, midday check-in, evening
+# reflection) plus a weekly progress review on Sundays. All use agentId: seneclaw.
+# All jobs use delivery: {mode: none} — gated announce pattern: the agent calls
+# `openclaw message send` explicitly; silence conditions produce no output and no
+# Telegram message.
+# Theme capture: system cron at 06:55 UTC runs capture-stoic-theme.sh, which
+# writes ~/stoic-state/daily-theme.json for the agent to read.
+
+- name: Stoic theme capture (system cron, no agent) at 06:55 UTC
+  cron:
+    name: "stoic theme capture"
+    minute: "55"
+    hour: "6"
+    job: "~/scripts/capture-stoic-theme.sh >> ~/stoic-state/capture.log 2>&1; tail -c 524288 ~/stoic-state/capture.log > ~/stoic-state/capture.log.tmp && mv ~/stoic-state/capture.log.tmp ~/stoic-state/capture.log"
+    user: "{{ openclaw_user }}"
+    state: "{{ 'present' if stoic_telegram_bottoken | default('') | length > 0 and scripts_repo_slug | default('') | length > 0 else 'absent' }}"
+
+- name: Configure Seneclaw coaching jobs in OpenClaw cron
+  shell: |
+    python3 - <<'PYEOF'
+    import json, os
+
+    jobs_path = os.environ['HOME'] + '/.openclaw/cron/jobs.json'
+    enable    = os.environ.get('SENECLAW_ENABLED') == '1'
+    tg_userid = os.environ.get('TELEGRAM_USERID', '')
+
+    managed = {'job-stoic-morning', 'job-stoic-midday', 'job-stoic-evening', 'job-stoic-weekly'}
+
+    os.makedirs(os.path.dirname(jobs_path), exist_ok=True)
+
+    try:
+        with open(jobs_path) as f:
+            store = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        store = {'version': 1, 'jobs': []}
+
+    before = json.dumps(store, sort_keys=True)
+
+    store['jobs'] = [j for j in store['jobs'] if j.get('jobId') not in managed and j.get('id') not in managed]
+
+    if enable:
+        home = os.environ['HOME']
+
+        # Morning seed — 07:20 UTC (5 min after xurl digest, 20 min after daily stoic quote)
+        store['jobs'].append({
+            'id':            'job-stoic-morning',
+            'jobId':         'job-stoic-morning',
+            'name':          'Stoic morning seed (Seneclaw)',
+            'enabled':       True,
+            'agentId':       'seneclaw',
+            'schedule':      {'kind': 'cron', 'expr': '20 7 * * *', 'staggerMs': 0},
+            'sessionTarget': 'isolated',
+            'wakeMode':      'now',
+            'payload':       {
+                'kind':    'agentTurn',
+                'message': f"Read {home}/stoic-state/daily-theme.json to get today's theme. Search your memory for recent conversations with this user. If you sent a message in the last 20 hours, output NOTHING. Otherwise compose a 1-4 sentence opening question or grounded observation based on today's theme and the user's specific context. Then call: openclaw message send --channel telegram --to {tg_userid}"
+            },
+            'delivery': {'mode': 'none'}
+        })
+
+        # Midday check-in — 12:00 UTC
+        store['jobs'].append({
+            'id':            'job-stoic-midday',
+            'jobId':         'job-stoic-midday',
+            'name':          'Stoic midday check-in (Seneclaw)',
+            'enabled':       True,
+            'agentId':       'seneclaw',
+            'schedule':      {'kind': 'cron', 'expr': '0 12 * * *', 'staggerMs': 0},
+            'sessionTarget': 'isolated',
+            'wakeMode':      'now',
+            'payload':       {
+                'kind':    'agentTurn',
+                'message': f"Read {home}/stoic-state/daily-theme.json for today's theme. Search your memory for today's exchanges with this user. If the user has not responded to any message today, output NOTHING. Otherwise compose a brief follow-up question or reflection (1-3 sentences) that builds on what they said. Then call: openclaw message send --channel telegram --to {tg_userid}"
+            },
+            'delivery': {'mode': 'none'}
+        })
+
+        # Evening reflection — 19:30 UTC (30 min after Sociaclamps heartbeat, clears feature-tips Fri only)
+        store['jobs'].append({
+            'id':            'job-stoic-evening',
+            'jobId':         'job-stoic-evening',
+            'name':          'Stoic evening reflection (Seneclaw)',
+            'enabled':       True,
+            'agentId':       'seneclaw',
+            'schedule':      {'kind': 'cron', 'expr': '30 19 * * *', 'staggerMs': 0},
+            'sessionTarget': 'isolated',
+            'wakeMode':      'now',
+            'payload':       {
+                'kind':    'agentTurn',
+                'message': f"Read {home}/stoic-state/daily-theme.json for today's theme. Search your memory for today's exchanges with this user. If the user has had zero engagement today (no messages sent or received), output NOTHING. Otherwise compose a brief evening reflection prompt (1-3 sentences) — something to sit with before sleep, grounded in today's theme or an open thread. Then call: openclaw message send --channel telegram --to {tg_userid}"
+            },
+            'delivery': {'mode': 'none'}
+        })
+
+        # Weekly Sunday progress review — 10:00 UTC
+        store['jobs'].append({
+            'id':            'job-stoic-weekly',
+            'jobId':         'job-stoic-weekly',
+            'name':          'Stoic weekly progress review (Seneclaw)',
+            'enabled':       True,
+            'agentId':       'seneclaw',
+            'schedule':      {'kind': 'cron', 'expr': '0 10 * * 0', 'staggerMs': 0},
+            'sessionTarget': 'isolated',
+            'wakeMode':      'now',
+            'payload':       {
+                'kind':    'agentTurn',
+                'message': f"Search your memory for the past week's exchanges with this user. Read {home}/workspace-seneclaw/USER_PROGRESS.md. Write a brief Sunday reflection (2-4 sentences) that synthesises what you observed this week — patterns, growth, open threads. Update USER_PROGRESS.md with a one-line session log entry and any new patterns or life context that emerged. Then call: openclaw message send --channel telegram --to {tg_userid}"
+            },
+            'delivery': {'mode': 'none'}
+        })
+
+    after = json.dumps(store, sort_keys=True)
+
+    if before != after:
+        tmp = jobs_path + '.tmp'
+        with open(tmp, 'w') as f:
+            json.dump(store, f, indent=2)
+        os.replace(tmp, jobs_path)
+        print('changed')
+    else:
+        print('ok')
+    PYEOF
+  become_user: "{{ openclaw_user }}"
+  environment:
+    HOME: "{{ openclaw_home }}"
+    SENECLAW_ENABLED: "{{ '1' if stoic_telegram_bottoken | default('') | length > 0 else '0' }}"
+    TELEGRAM_USERID: "{{ telegram_userid | default('') }}"
+  register: seneclaw_cron_result
+  changed_when: "'changed' in seneclaw_cron_result.stdout"
+  when: stoic_telegram_bottoken | default('') | length > 0
   notify: Restart OpenClaw
 
 # ── Phase 10: Security Audit ──────────────────────────────────────────────────
