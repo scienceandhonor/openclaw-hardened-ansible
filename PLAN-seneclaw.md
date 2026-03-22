@@ -23,7 +23,7 @@ Runner-ups: Epicteclaws, Marcus Clawrelius (funniest but too long), Pinchictetus
 
 **Fixed cron windows + agent-side intelligence.**
 
-OpenClaw cron only supports fixed schedules, but the agent can output nothing (= no Telegram message). The agent becomes adaptive not by changing *when* it wakes up, but by changing *whether* it speaks, based on its memory of user response patterns.
+OpenClaw cron only supports fixed schedules, but the agent can stay silent by not calling `openclaw message send`. All Seneclaw jobs use `delivery: {mode: none}` — the job-level announce delivery is disabled. The agent is the sole sender: it calls `openclaw message send --channel telegram --to <USER_ID>` explicitly when it decides to speak, and produces no output (and sends nothing) when the silence condition is met. This is the *gated announce* pattern — `delivery: announce` would forward the agent's output unconditionally, breaking all silence conditions.
 
 Each job prompt includes explicit silence conditions ("output NOTHING if the human hasn't responded today"). A non-responsive user receives at most 1 message/day (morning seed) + 1/week (Sunday review).
 
@@ -96,7 +96,7 @@ Template with sections for Patterns (response times, engagement days), Principle
 ### 3. `roles/tier2-setup/tasks/install.yml`
 - **Phase 3**: Create `~/workspace-seneclaw/`, `~/workspace-seneclaw/memory/`, `~/stoic-state/` directories
 - **Phase 3**: Deploy workspace files (AGENTS.md, SOUL.md, PHILOSOPHY.md, USER_PROGRESS.md) with `force: false`
-- **Phase 9q** (new): Python shell task managing 4 cron jobs (`job-stoic-morning`, `job-stoic-midday`, `job-stoic-evening`, `job-stoic-weekly`) — all with `agentId: seneclaw`, announce delivery
+- **Phase 9q** (new): Python shell task managing 4 cron jobs (`job-stoic-morning`, `job-stoic-midday`, `job-stoic-evening`, `job-stoic-weekly`) — all with `agentId: seneclaw`, `delivery: {mode: none}` (gated announce: agent calls `openclaw message send` explicitly; silence conditions produce no output and no Telegram message)
 - **System cron**: `capture-stoic-theme.sh` at `55 6 * * *`
 
 ### 4. `CLAUDE.md`
