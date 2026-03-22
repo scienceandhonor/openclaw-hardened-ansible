@@ -1247,9 +1247,9 @@
             'wakeMode':      'now',
             'payload':       {
                 'kind':    'agentTurn',
-                'message': "Run `openclaw update status --json` and parse the output. If `availability.available` is true, send a Telegram message to the user saying a new OpenClaw version is available and include the value of `registry.latestVersion`. If no update is available, do nothing — send no message."
+                'message': f"Run `openclaw update status --json` and parse the output. If `availability.available` is true, send a Telegram message to the user with `openclaw message send --channel telegram --to {os.environ.get('TELEGRAM_USERID', '')} --message '...'` saying a new OpenClaw version is available and including the value of `registry.latestVersion`. If no update is available, produce no output and stop."
             },
-            'delivery':      {'mode': 'announce', 'channel': 'telegram', 'to': os.environ.get('TELEGRAM_USERID', '')}
+            'delivery':      {'mode': 'none'}
         }
         if agent_id:
             job['agentId'] = agent_id
