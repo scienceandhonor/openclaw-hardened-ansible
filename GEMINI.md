@@ -3,73 +3,72 @@
 This file provides instructional context for Gemini CLI interactions within the `openclaw-hardened-ansible` project.
 
 ## Project Overview
-This project is an automated **Ansible-based deployment** system for **hardened OpenClaw** instances. It supports two levels of security hardening:
+This project is an automated **Ansible-based deployment** system for **hardened OpenClaw** instances. 
 
-- **Tier 2 (Secure Host):** Direct systemd-based deployment on a hardened Debian/Ubuntu host with Tailscale Serve (HTTPS) and auto-paired CLI.
-- **Tier 3+ (Defense-in-Depth):** Containerized deployment using Podman (Rootless), LiteLLM credential brokering, and Squid egress filtering.
+> [!IMPORTANT]
+> **Tier 3 (Containerized/Podman) has been discontinued.** The project now focuses exclusively on **Tier 2 (Direct Host)** deployment for maximum performance and reliability on hardened Debian/Ubuntu systems.
 
 ### Key Technologies
 - **Ansible:** Orchestrates system setup, hardening, and deployment.
 - **Tailscale:** Provides secure remote access via Tailscale Serve (HTTPS termination) and Tailscale SSH.
 - **Node.js 22:** The required runtime for OpenClaw (CVE-2026-21636 compliance).
-- **Podman (Tier 3):** Runs containers as a non-privileged user for enhanced isolation.
-- **LiteLLM (Tier 3):** Acts as a credential broker and model spoofing layer.
-- **Squid Proxy (Tier 3):** Filters all outgoing container traffic using a domain allowlist.
 - **UFW & Fail2Ban:** Manages host-level firewall and brute-force protection.
+- **Cron-based Automation:** Orchestrates periodic fetches (Substack, Reddit, xurl) and agent-led digests.
 
-### Architecture
-#### Tier 2 (Direct)
+## Architecture: Tier 2 (Direct)
 1.  **OpenClaw Gateway:** Runs as a systemd service under the `openclaw` user.
 2.  **Tailscale Serve:** Maps `https://<hostname>.ts.net` to local port 18789.
-3.  **Auto-Pairing:** Deployment automatically pairs the CLI device to avoid headless UI deadlocks.
-
-#### Tier 3 (Containerized)
-1.  **OpenClaw Agent:** Core AI agent service in a rootless container.
-2.  **LiteLLM Proxy:** Routes model requests to external providers (Anthropic, OpenAI, Ollama).
-3.  **Squid Proxy Sidecar:** All egress traffic from the agent goes through this proxy.
-4.  **Host OS Hardening:** Kernel limits (sysctl) and user-level isolation.
+3.  **Multiple Specialized Agents:** Deployment configures distinct workspaces and personas:
+    - **RightClamp (Main):** General purpose agent.
+    - **ThePincerMove:** Digest agent for news and social signals. Pinned to `mistral/mistral-medium-2508`.
+    - **SirShellspeare:** Roleplay (RP) agent with world-event weaving.
+    - **Sociaclamps:** Social monitoring and Moltbook integration.
+    - **Seneclaw:** Stoic coaching and reflection.
 
 ## Building and Running
 
 ### Deployment
 - **Tier 2 (Direct):**
   ```bash
-  ./deploy-tier2.sh -t <TARGET_IP> -p ollama -m llama3
+  ./deploy-tier2.sh -t <TARGET_IP> -p <PROVIDER> -m <MODEL>
   ```
-- **Tier 3 (Containerized):**
-  ```bash
-  ./deploy.sh -t <TARGET_IP> -p anthropic -m claude-3-5-sonnet-20240620 -k <API_KEY>
-  ```
+  Supported providers include `anthropic`, `openai_compatible`, `minimax`, `mistral`, and `gemini`.
 
 ### Maintenance Commands
-- **Check Status (Tier 2):** `systemctl status openclaw`
-- **Check Status (Tier 3):** Run `podman ps` on the VPS as the `openclaw` user.
-- **Update Egress Allowlist (Tier 3):** Edit `roles/tier3-setup/templates/allowlist.txt.j2` and run `./update-allowlist.sh`.
-- **OpenClaw Doctor:**
-  - Tier 2: `openclaw doctor`
-  - Tier 3: `podman exec openclaw-agent openclaw doctor`
-- **Manual Device Approval:**
-  - Tier 2: `openclaw devices approve <REQUEST_ID>`
-  - Tier 3: `podman exec openclaw-agent openclaw devices approve <REQUEST_ID>`
+- **Check Status:** `systemctl status openclaw`
+- **OpenClaw Doctor:** `openclaw doctor`
+- **Manual Device Approval:** `openclaw devices approve <REQUEST_ID>`
+- **View Logs:** `journalctl -u openclaw -f`
 
 ## Development Conventions
 
 ### Ansible Structure
-- **Role-based:** Logic is split between `tier2-setup` (direct host) and `tier3-setup` (containerized).
-- **OS Support:**
-  - Tier 2: Supports Debian/Ubuntu only.
-  - Tier 3: Supports Arch Linux and Debian/Ubuntu.
-- **Hardening Logic:** Contained in `security.yml` within each role.
-- **Templates:** Configs (`openclaw.json`, `tools.yaml`, etc.) are Jinja2 templates.
+- **Tier 2 Focus:** Main logic resides in `roles/tier2-setup`.
+- **OS Support:** Debian/Ubuntu only.
+- **Hardening Logic:** Contained in `roles/tier2-setup/tasks/security.yml`. Runs **last** to prevent lockout on failure.
+- **Templates:** Jinja2 templates for `openclaw.json`, `tools.yaml`, `mcp.json`, and various cron-driven Python scripts.
 
 ### Coding Style & Patterns
-- **Gateway Tokens:** MUST be 48-character hex strings (24 bytes). Base64 is rejected by OpenClaw with code 4008.
-- **SSH Hardening:** Use `PermitRootLogin prohibit-password` instead of `no` to maintain idempotent Ansible access via keys while blocking passwords.
+- **Gateway Tokens:** MUST be 48-character hex strings (24 bytes). Base64 is rejected (Code 4008).
+- **Mistral Support:** Requires `apiKey`, `api: "openai-completions"`, and `baseUrl: "https://api.mistral.ai/v1"`. PincerMove uses `mistral/mistral-medium-2508`.
 - **Headless Bootstrap:** Tier 2 uses a Python-based filesystem manipulation to approve the CLI device pairing request in `pending.json` -> `paired.json`.
-- **LiteLLM Mapping (Tier 3):** Model IDs are mapped in `litellm-config.yaml.j2` to enable spoofing.
+- **Strict Inline Eval:** Global `tools.exec.strictInlineEval: true` is required when allowlisting interpreters (python, node, etc.) to satisfy OpenClaw doctor security checks.
+- **Cron Integration:** Heavy use of Python scripts in the playbook to inject jobs into `~/.openclaw/cron/jobs.json`.
+- **Gated Announce Pattern:** For jobs with conditional notifications, use `delivery: {mode: none}` in cron and call `openclaw message send` explicitly within the agent prompt only when the condition is met.
+
+### Pipelines & State
+- **Substack (Phase 9f):** Hourly system cron fetch → `email-state/undigested.json`. Agent digest at 06:45 and 16:00 UTC.
+- **Reddit (Phase 9m):** Hourly system cron fetch → `reddit-state/undigested.json`. Agent digest at 07:30 and 16:30 UTC.
+- **xurl (Phase 9k):** Hourly system cron fetch → `timeline-state/undigested.json`. Agent digest at 07:15 and 16:15 UTC. Daily token refresh at 03:30 UTC.
+- **RP World Events (Phase 9o):** Hourly signal collection (`gather-world-signals.sh`) → `world-events/pending-signals.json`. RightClamp generates events at 11:00/22:00 UTC → `workspace-rp/pending-events.json`. SirShellspeare nudges at 19:00 UTC.
+- **Stoic Coaching (Phase 9q):** Daily theme capture at 06:55 UTC. Seneclaw morning seed (07:20), midday check-in (12:00), evening reflection (19:30), Sunday review (10:00).
+- **Obsidian Sync (Phase 9s):** Git-backed R/W vault in `~/obsidian-vault/`. Hourly pull. Post-merge hook triggers scan/summarize.
 
 ## Important Files
-- `playbook-tier2.yml` / `playbook.yml`: Main entry points for Tier 2 and Tier 3.
-- `roles/tier2-setup/tasks/install.yml`: Logic for direct host installation and auto-pairing.
-- `roles/tier3-setup/tasks/docker-deploy.yml`: Logic for deploying the containerized stack.
-- `roles/shared/templates/openclaw.json.j2`: Primary configuration (note: currently duplicated or specialized per tier).
+- `playbook-tier2.yml`: Main entry point for deployment.
+- `deploy-tier2.sh`: Wrapper script with argument parsing and extra-vars mapping.
+- `roles/tier2-setup/tasks/install.yml`: Core installation logic (Phase 1-9).
+- `roles/tier2-setup/templates/openclaw.json.j2`: Primary gateway and provider configuration.
+- `roles/tier2-setup/templates/tools.yaml.j2`: Shell and filesystem allowlist configuration.
+- `roles/tier2-setup/templates/exec-approvals.json.j2`: Binary execution allowlist.
+- `roles/tier2-setup/templates/scripts-config.env.j2`: Rendered with secrets (mode 0600) for clamps-tools scripts.

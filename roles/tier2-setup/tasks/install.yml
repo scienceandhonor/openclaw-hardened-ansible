@@ -28,8 +28,8 @@
 
 # ── Phase 2: Install OpenClaw ────────────────────────────────────────────────
 
-- name: Install OpenClaw globally (as root → /usr/bin/openclaw)
-  command: npm install -g openclaw@latest
+- name: Install OpenClaw globally (version 2026.3.13)
+  command: npm install -g openclaw@2026.3.13
   register: npm_install_result
   changed_when: "'added' in npm_install_result.stdout or 'updated' in npm_install_result.stdout"
 
@@ -440,7 +440,7 @@
 # ── Phase 7: Wait for Gateway ────────────────────────────────────────────────
 
 - name: Wait for OpenClaw gateway to be ready on localhost
-  shell: curl -sf http://127.0.0.1:18789 > /dev/null
+  shell: "curl -s -H \"Authorization: Bearer {{ gateway_token }}\" http://127.0.0.1:18789 > /dev/null"
   register: gateway_ready
   retries: 20
   delay: 3
