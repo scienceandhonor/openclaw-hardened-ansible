@@ -1595,7 +1595,7 @@
             'id':            job_id,
             'jobId':         job_id,
             'name':          'Moltbook context update',
-            'enabled':       True,
+            'enabled':       False,
             'schedule':      {'kind': 'cron', 'expr': '0 */4 * * *', 'staggerMs': 0},
             'sessionTarget': 'isolated',
             'wakeMode':      'now',
@@ -1652,7 +1652,7 @@
             'id':            job_id,
             'jobId':         job_id,
             'name':          'Moltbook heartbeat',
-            'enabled':       True,
+            'enabled':       False,
             'schedule':      {'kind': 'cron', 'expr': '30 */4 * * *', 'staggerMs': 0},
             'sessionTarget': 'isolated',
             'wakeMode':      'now',
@@ -1851,7 +1851,7 @@
             'id':            job_id,
             'jobId':         job_id,
             'name':          'Sociaclamps memory maintenance',
-            'enabled':       True,
+            'enabled':       False,
             'schedule':      {'kind': 'cron', 'expr': '0 9 * * 0', 'staggerMs': 0},
             'sessionTarget': 'isolated',
             'wakeMode':      'now',
@@ -1979,6 +1979,26 @@
       between agent commits and Obsidian app edits on Mac/Android.
   when: obsidian_repo_slug | default('') | length > 0 and obsidian_tracked.stdout | default('') | length > 0
 
+- name: Create obsidian-state directory
+  file:
+    path: "{{ openclaw_home }}/obsidian-state"
+    state: directory
+    owner: "{{ openclaw_user }}"
+    mode: '0755'
+  when: obsidian_repo_slug | default('') | length > 0
+
+- name: Deploy post-merge hook for obsidian vault
+  copy:
+    dest: "{{ openclaw_home }}/obsidian-vault/.git/hooks/post-merge"
+    content: |
+      #!/bin/bash
+      ~/scripts/scan-obsidian-summarize.sh >> ~/obsidian-state/scan.log 2>&1
+      tail -c 524288 ~/obsidian-state/scan.log > ~/obsidian-state/scan.log.tmp \
+        && mv ~/obsidian-state/scan.log.tmp ~/obsidian-state/scan.log
+    owner: "{{ openclaw_user }}"
+    mode: '0755'
+  when: obsidian_repo_slug | default('') | length > 0 and scripts_repo_slug | default('') | length > 0
+
 - name: Create obsidian skill directory
   file:
     path: "{{ openclaw_home }}/workspace/skills/obsidian"
@@ -2027,6 +2047,72 @@
       && mv ~/obsidian-vault-sync.log.tmp ~/obsidian-vault-sync.log
     user: "{{ openclaw_user }}"
     state: "{{ 'present' if obsidian_repo_slug | default('') | length > 0 else 'absent' }}"
+
+# ── Phase 9t: Obsidian Link Summarize Cron ────────────────────────────────────
+# Gated on both obsidian_repo_slug and scripts_repo_slug.
+# Runs at :15 every hour (10 min after the vault pull at :05).
+# Agent reads pending-summarize.json, fetches URLs, appends summaries, pushes.
+
+- name: Configure obsidian link summarize job in OpenClaw cron
+  shell: |
+    python3 - <<'PYEOF'
+    import json, os
+
+    jobs_path = os.environ['HOME'] + '/.openclaw/cron/jobs.json'
+    job_id    = 'job-obsidian-summarize'
+    enable    = os.environ.get('OBSIDIAN_ENABLED') == '1' and \
+                os.environ.get('SCRIPTS_ENABLED') == '1'
+
+    os.makedirs(os.path.dirname(jobs_path), exist_ok=True)
+
+    try:
+        with open(jobs_path) as f:
+            store = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        store = {'version': 1, 'jobs': []}
+
+    before = json.dumps(store, sort_keys=True)
+
+    store['jobs'] = [j for j in store['jobs']
+                     if j.get('jobId') != job_id and j.get('id') != job_id]
+
+    if enable:
+        home = os.environ['HOME']
+        store['jobs'].append({
+            'id':            job_id,
+            'jobId':         job_id,
+            'name':          'Obsidian link summarize',
+            'enabled':       True,
+            'schedule':      {'kind': 'cron', 'expr': '15 * * * *', 'staggerMs': 0},
+            'sessionTarget': 'isolated',
+            'wakeMode':      'now',
+            'payload':       {
+                'kind':    'agentTurn',
+                'message': f'Follow the instructions in {home}/scripts/obsidian-summarize-prompt.txt'
+            },
+            'delivery':      {'mode': 'none'}
+        })
+
+    after = json.dumps(store, sort_keys=True)
+
+    if before != after:
+        tmp = jobs_path + '.tmp'
+        with open(tmp, 'w') as f:
+            json.dump(store, f, indent=2)
+        os.replace(tmp, jobs_path)
+        print('changed')
+    else:
+        print('ok')
+    PYEOF
+  become_user: "{{ openclaw_user }}"
+  environment:
+    HOME: "{{ openclaw_home }}"
+    OBSIDIAN_ENABLED: "{{ '1' if obsidian_repo_slug | default('') | length > 0 else '0' }}"
+    SCRIPTS_ENABLED: "{{ '1' if scripts_repo_slug | default('') | length > 0 else '0' }}"
+  register: obsidian_summarize_cron_result
+  changed_when: "'changed' in obsidian_summarize_cron_result.stdout"
+  when: obsidian_repo_slug | default('') | length > 0 and scripts_repo_slug | default('') | length > 0
+  notify: Restart OpenClaw
 
 # ── Phase 10: Security Audit ──────────────────────────────────────────────────
 

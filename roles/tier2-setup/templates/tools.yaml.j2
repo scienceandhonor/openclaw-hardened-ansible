@@ -32,6 +32,7 @@ tools:
 {% endif %}
 {% if obsidian_repo_slug | default('') | length > 0 %}
       - "{{ openclaw_home }}/obsidian-vault"
+      - "{{ openclaw_home }}/obsidian-state"
 {% endif %}
     deniedPaths:
       - "{{ openclaw_home }}/.ssh"

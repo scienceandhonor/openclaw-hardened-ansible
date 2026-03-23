@@ -105,6 +105,24 @@ Then commit and push. Check for wikilinks that reference this note beforehand:
 grep -r "Note Name" ~/obsidian-vault --include="*.md" -l
 ```
 
+## AI Processing
+
+To ask the agent to fetch and summarize all links in a note, add this to
+the note's frontmatter:
+
+```yaml
+ai_summarize: true
+```
+
+Commit and push the note. Within ~15 minutes (after the :05 pull + :15 cron)
+the agent will:
+- Fetch each URL in the note using `bash ~/scripts/fetch-url-content.sh <URL>`
+- Append a `## AI Link Summaries` section with 2-4 sentence summaries per link
+- Change `ai_summarize: true` to `ai_summarize: done` in the frontmatter
+- Commit and push the updated note back to the vault
+
+Notes with `ai_summarize: done` are not re-processed.
+
 ## Vault Structure
 
 ```
