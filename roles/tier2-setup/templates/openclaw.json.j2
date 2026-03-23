@@ -33,9 +33,15 @@
     "consoleStyle": "compact",
     "redactSensitive": "tools"
   },
-{% if openrouter_key | default('') | length > 0 %}
+{% if openrouter_key | default('') | length > 0 or mistral_key | default('') | length > 0 %}
   "env": {
-    "OPENROUTER_API_KEY": "{{ openrouter_key }}"
+{% if openrouter_key | default('') | length > 0 %}
+    "OPENROUTER_API_KEY": "{{ openrouter_key }}"{% if mistral_key | default('') | length > 0 %},{% endif %}
+
+{% endif %}
+{% if mistral_key | default('') | length > 0 %}
+    "MISTRAL_API_KEY": "{{ mistral_key }}"
+{% endif %}
   },
 {% endif %}
 {% if llm_provider == 'minimax' %}
@@ -162,6 +168,21 @@
             "input": ["text", "image"],
             "contextWindow": 200000,
             "maxTokens": 8096
+          }
+        ]
+        }{% endif %}{% if mistral_key | default('') | length > 0 %},
+        "mistral": {
+        "apiKey": "{{ mistral_key }}",
+        "api": "openai-completions",
+        "baseUrl": "https://api.mistral.ai/v1",
+        "models": [
+          {
+            "id": "mistral-medium-2508",
+            "name": "Mistral Medium 2508",
+            "reasoning": false,
+            "input": ["text"],
+            "contextWindow": 32768,
+            "maxTokens": 4096
           }
         ]
       }{% endif %}
@@ -316,8 +337,13 @@
         "name": "ThePincerMove",
         "workspace": "{{ openclaw_home }}/workspace-pincermove",
         "model": {
+{% if mistral_key | default('') | length > 0 %}
+          "primary": "mistral/mistral-medium-2508",
+          "fallbacks": []
+{% else %}
           "primary": "openrouter/stepfun/step-3.5-flash:free",
           "fallbacks": ["minimax/MiniMax-M2.1"]
+{% endif %}
         },
         "tools": {
           "deny": ["write", "edit", "apply_patch", "browser", "process"]
@@ -370,6 +396,9 @@
     ]
   },
   "tools": {
+    "exec": {
+      "strictInlineEval": true
+    },
     "loopDetection": {
       "enabled": true,
       "historySize": 30,
