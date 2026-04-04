@@ -1700,7 +1700,7 @@
     hour: "6"
     job: "~/scripts/capture-stoic-theme.sh >> ~/stoic-state/capture.log 2>&1; tail -c 524288 ~/stoic-state/capture.log > ~/stoic-state/capture.log.tmp && mv ~/stoic-state/capture.log.tmp ~/stoic-state/capture.log"
     user: "{{ openclaw_user }}"
-    state: "{{ 'present' if stoic_telegram_bottoken | default('') | length > 0 and scripts_repo_slug | default('') | length > 0 else 'absent' }}"
+    state: absent
 
 - name: Configure Seneclaw coaching jobs in OpenClaw cron
   shell: |
@@ -1810,7 +1810,7 @@
   become_user: "{{ openclaw_user }}"
   environment:
     HOME: "{{ openclaw_home }}"
-    SENECLAW_ENABLED: "{{ '1' if stoic_telegram_bottoken | default('') | length > 0 else '0' }}"
+    SENECLAW_ENABLED: '0'
     TELEGRAM_USERID: "{{ telegram_userid | default('') }}"
   register: seneclaw_cron_result
   changed_when: "'changed' in seneclaw_cron_result.stdout"
