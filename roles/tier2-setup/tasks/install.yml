@@ -1475,9 +1475,7 @@
     minute: "45"
     job: "{{ openclaw_home }}/scripts/gather-world-signals.sh >> {{ openclaw_home }}/world-events/gather.log 2>&1; tail -c 524288 {{ openclaw_home }}/world-events/gather.log > {{ openclaw_home }}/world-events/gather.log.tmp && mv {{ openclaw_home }}/world-events/gather.log.tmp {{ openclaw_home }}/world-events/gather.log"
     user: "{{ openclaw_user }}"
-  when:
-    - rp_telegram_bottoken | default('') | length > 0
-    - scripts_repo_slug | default('') | length > 0
+    state: absent
 
 - name: Configure RP world events jobs in OpenClaw cron
   shell: |
@@ -1556,7 +1554,7 @@
   become_user: "{{ openclaw_user }}"
   environment:
     HOME: "{{ openclaw_home }}"
-    RP_ENABLED: "{{ '1' if rp_telegram_bottoken | default('') | length > 0 else '0' }}"
+    RP_ENABLED: '0'
     TELEGRAM_ENABLED: "{{ '1' if telegram_userid | default('') | length > 0 else '0' }}"
     TELEGRAM_USERID: "{{ telegram_userid | default('') }}"
   register: rp_world_events_result
