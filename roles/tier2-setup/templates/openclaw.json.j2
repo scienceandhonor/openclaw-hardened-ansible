@@ -165,8 +165,8 @@
             "maxTokens": 8096
           }
         ]
-        }{% endif %}{% if mistral_key | default('') | length > 0 %},
-        "mistral": {
+      }{% endif %}{% if mistral_key | default('') | length > 0 %},
+      "mistral": {
         "apiKey": "{{ mistral_key }}",
         "api": "openai-completions",
         "baseUrl": "https://api.mistral.ai/v1",
@@ -332,13 +332,8 @@
         "name": "ThePincerMove",
         "workspace": "{{ openclaw_home }}/workspace-pincermove",
         "model": {
-{% if mistral_key | default('') | length > 0 %}
-          "primary": "mistral/mistral-medium-2508",
+          "primary": "minimax/MiniMax-M2.1",
           "fallbacks": []
-{% else %}
-          "primary": "openrouter/stepfun/step-3.5-flash:free",
-          "fallbacks": ["minimax/MiniMax-M2.1"]
-{% endif %}
         },
         "tools": {
           "deny": ["write", "edit", "apply_patch", "browser", "process"]
