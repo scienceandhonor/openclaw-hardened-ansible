@@ -368,6 +368,9 @@
       {% if gemini_key | default('') | length > 0 %}
       Environment=GEMINI_API_KEY={{ gemini_key }}
       {% endif %}
+      {% if llm_provider == 'minimax' %}
+      Environment=MINIMAX_API_KEY={{ llm_key }}
+      {% endif %}
       ExecStart={{ openclaw_bin.stdout }} gateway run
       Restart=on-failure
       RestartSec=15
@@ -751,7 +754,7 @@
             'jobId':         job_id,
             'name':          'Band NSBM check',
             'enabled':       True,
-            'schedule':      {'kind': 'cron', 'expr': '0 8 * * *', 'staggerMs': 0},
+            'schedule':      {'kind': 'cron', 'expr': '0 7 * * *', 'staggerMs': 0},
             'sessionTarget': 'isolated',
             'wakeMode':      'now',
             'payload':       {
@@ -841,8 +844,8 @@
         message   = 'Run {{ openclaw_home }}/scripts/run-substack-digest.sh then follow the instructions in {{ openclaw_home }}/scripts/substack-prompt.txt'
         agent_id  = os.environ.get('PINCERMOVE_AGENT_ID', '')
         for job_id, name, expr in [
-            ('substack-digest-morning', 'Substack digest (morning)', '45 6 * * *'),
-            ('substack-digest-evening', 'Substack digest (evening)', '0 16 * * *'),
+            ('substack-digest-morning', 'Substack digest (morning)', '45 5 * * *'),
+            ('substack-digest-evening', 'Substack digest (evening)', '0 15 * * *'),
         ]:
             job = {
                 'id':            job_id,
@@ -914,7 +917,7 @@
             'jobId':         job_id,
             'name':          'Daily stoic quote',
             'enabled':       True,
-            'schedule':      {'kind': 'cron', 'expr': '0 7 * * *', 'staggerMs': 0},
+            'schedule':      {'kind': 'cron', 'expr': '0 6 * * *', 'staggerMs': 0},
             'sessionTarget': 'isolated',
             'wakeMode':      'now',
             'payload':       {
@@ -983,7 +986,7 @@
             'jobId':         job_id,
             'name':          'MiniMax weekly summary reminder',
             'enabled':       True,
-            'schedule':      {'kind': 'cron', 'expr': '0 18 * * 5', 'staggerMs': 0},
+            'schedule':      {'kind': 'cron', 'expr': '0 17 * * 5', 'staggerMs': 0},
             'sessionTarget': 'isolated',
             'wakeMode':      'now',
             'payload':       {
@@ -1111,8 +1114,8 @@
         delivery  = {'mode': 'announce', 'channel': 'telegram', 'to': os.environ.get('TELEGRAM_USERID', '')} if tg_on else {'mode': 'none'}
         agent_id  = os.environ.get('PINCERMOVE_AGENT_ID', '')
         for job_id, name, expr in [
-            ('xurl-timeline-digest-morning', 'X timeline digest (morning)', '15 7 * * *'),
-            ('xurl-timeline-digest-evening', 'X timeline digest (evening)', '15 16 * * *'),
+            ('xurl-timeline-digest-morning', 'X timeline digest (morning)', '15 6 * * *'),
+            ('xurl-timeline-digest-evening', 'X timeline digest (evening)', '15 15 * * *'),
         ]:
             job = {
                 'id':            job_id,
@@ -1205,8 +1208,8 @@
         delivery  = {'mode': 'announce', 'channel': 'telegram', 'to': os.environ.get('TELEGRAM_USERID', '')} if tg_on else {'mode': 'none'}
         agent_id  = os.environ.get('PINCERMOVE_AGENT_ID', '')
         for job_id, name, expr in [
-            ('reddit-digest-morning', 'Reddit digest (morning)', '30 7 * * *'),
-            ('reddit-digest-evening', 'Reddit digest (evening)', '30 16 * * *'),
+            ('reddit-digest-morning', 'Reddit digest (morning)', '30 6 * * *'),
+            ('reddit-digest-evening', 'Reddit digest (evening)', '30 15 * * *'),
         ]:
             job = {
                 'id':            job_id,
@@ -1282,7 +1285,7 @@
             'jobId':         job_id,
             'name':          'OpenClaw update check',
             'enabled':       True,
-            'schedule':      {'kind': 'cron', 'expr': '30 20 * * *', 'staggerMs': 0},
+            'schedule':      {'kind': 'cron', 'expr': '30 19 * * *', 'staggerMs': 0},
             'sessionTarget': 'isolated',
             'wakeMode':      'now',
             'payload':       {
@@ -1362,7 +1365,7 @@
             'jobId':         job_id,
             'name':          'OpenClaw Friday feature tips',
             'enabled':       True,
-            'schedule':      {'kind': 'cron', 'expr': '0 19 * * 5', 'staggerMs': 0},
+            'schedule':      {'kind': 'cron', 'expr': '0 18 * * 5', 'staggerMs': 0},
             'sessionTarget': 'isolated',
             'wakeMode':      'now',
             'payload':       {
@@ -1421,7 +1424,7 @@
             'jobId':         job_id,
             'name':          'OpenClaw Monday feature tip reminder',
             'enabled':       True,
-            'schedule':      {'kind': 'cron', 'expr': '0 17 * * 1', 'staggerMs': 0},
+            'schedule':      {'kind': 'cron', 'expr': '0 16 * * 1', 'staggerMs': 0},
             'sessionTarget': 'isolated',
             'wakeMode':      'now',
             'payload':       {
@@ -1504,8 +1507,8 @@
 
     if rp_on:
         # World event generation — RightClamp agent, twice daily, silent delivery
-        for job_id, expr in [('job-rp-world-events-morning', '0 11 * * *'),
-                             ('job-rp-world-events-evening', '0 22 * * *')]:
+        for job_id, expr in [('job-rp-world-events-morning', '0 10 * * *'),
+                             ('job-rp-world-events-evening', '0 21 * * *')]:
             store['jobs'].append({
                 'id':            job_id,
                 'jobId':         job_id,
@@ -1529,7 +1532,7 @@
                 'jobId':         'job-rp-world-nudge',
                 'name':          'RP world nudge',
                 'enabled':       True,
-                'schedule':      {'kind': 'cron', 'expr': '0 19 * * *', 'staggerMs': 0},
+                'schedule':      {'kind': 'cron', 'expr': '0 18 * * *', 'staggerMs': 0},
                 'sessionTarget': 'isolated',
                 'wakeMode':      'now',
                 'agentId':       'sirshellspeare',
@@ -1733,7 +1736,7 @@
             'name':          'Stoic morning seed (Seneclaw)',
             'enabled':       True,
             'agentId':       'seneclaw',
-            'schedule':      {'kind': 'cron', 'expr': '20 7 * * *', 'staggerMs': 0},
+            'schedule':      {'kind': 'cron', 'expr': '20 6 * * *', 'staggerMs': 0},
             'sessionTarget': 'isolated',
             'wakeMode':      'now',
             'payload':       {
@@ -1750,7 +1753,7 @@
             'name':          'Stoic midday check-in (Seneclaw)',
             'enabled':       True,
             'agentId':       'seneclaw',
-            'schedule':      {'kind': 'cron', 'expr': '0 12 * * *', 'staggerMs': 0},
+            'schedule':      {'kind': 'cron', 'expr': '0 11 * * *', 'staggerMs': 0},
             'sessionTarget': 'isolated',
             'wakeMode':      'now',
             'payload':       {
@@ -1767,7 +1770,7 @@
             'name':          'Stoic evening reflection (Seneclaw)',
             'enabled':       True,
             'agentId':       'seneclaw',
-            'schedule':      {'kind': 'cron', 'expr': '30 19 * * *', 'staggerMs': 0},
+            'schedule':      {'kind': 'cron', 'expr': '30 18 * * *', 'staggerMs': 0},
             'sessionTarget': 'isolated',
             'wakeMode':      'now',
             'payload':       {
@@ -1784,7 +1787,7 @@
             'name':          'Stoic weekly progress review (Seneclaw)',
             'enabled':       True,
             'agentId':       'seneclaw',
-            'schedule':      {'kind': 'cron', 'expr': '0 10 * * 0', 'staggerMs': 0},
+            'schedule':      {'kind': 'cron', 'expr': '0 9 * * 0', 'staggerMs': 0},
             'sessionTarget': 'isolated',
             'wakeMode':      'now',
             'payload':       {
@@ -1850,7 +1853,7 @@
             'jobId':         job_id,
             'name':          'Sociaclamps memory maintenance',
             'enabled':       False,
-            'schedule':      {'kind': 'cron', 'expr': '0 9 * * 0', 'staggerMs': 0},
+            'schedule':      {'kind': 'cron', 'expr': '0 8 * * 0', 'staggerMs': 0},
             'sessionTarget': 'isolated',
             'wakeMode':      'now',
             'agentId':       'sociaclamps',

@@ -33,8 +33,12 @@
     "consoleStyle": "compact",
     "redactSensitive": "tools"
   },
-{% if openrouter_key | default('') | length > 0 or mistral_key | default('') | length > 0 %}
+{% if openrouter_key | default('') | length > 0 or mistral_key | default('') | length > 0 or llm_provider == 'minimax' %}
   "env": {
+{% if llm_provider == 'minimax' %}
+    "MINIMAX_API_KEY": "{{ llm_key }}"{% if openrouter_key | default('') | length > 0 or mistral_key | default('') | length > 0 %},{% endif %}
+
+{% endif %}
 {% if openrouter_key | default('') | length > 0 %}
     "OPENROUTER_API_KEY": "{{ openrouter_key }}"{% if mistral_key | default('') | length > 0 %},{% endif %}
 
@@ -42,16 +46,6 @@
 {% if mistral_key | default('') | length > 0 %}
     "MISTRAL_API_KEY": "{{ mistral_key }}"
 {% endif %}
-  },
-{% endif %}
-{% if llm_provider == 'minimax' %}
-  "auth": {
-    "profiles": {
-      "minimax:default": {
-        "provider": "minimax",
-        "mode": "api_key"
-      }
-    }
   },
 {% endif %}
   "models": {
@@ -116,6 +110,7 @@
       "minimax": {
         "api": "anthropic-messages",
         "baseUrl": "https://api.minimax.io/anthropic",
+        "apiKey": "${MINIMAX_API_KEY}",
         "models": [
           {
             "id": "{{ llm_model }}",
