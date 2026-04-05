@@ -13,6 +13,8 @@
       "allowlist": [
         { "pattern": "/usr/bin/bash" },
         { "pattern": "/bin/bash" },
+        { "pattern": "{{ openclaw_home }}/scripts/check-bands.sh" },
+        { "pattern": "{{ openclaw_home }}/scripts/fetch-lastfm-artists.sh" },
         { "pattern": "/usr/bin/ls" },
         { "pattern": "/bin/ls" },
         { "pattern": "/usr/bin/cat" },
@@ -34,6 +36,23 @@
     "files": {
       "security": "deny",
       "ask": "always"
+    },
+    "pincermove": {
+      "security": "allowlist",
+      "ask": "off",
+      "allowlist": [
+        { "pattern": "{{ openclaw_home }}/scripts/run-substack-digest.sh" },
+        { "pattern": "{{ openclaw_home }}/scripts/run-reddit-digest.sh" },
+        { "pattern": "{{ openclaw_home }}/scripts/run-xurl-digest.sh" },
+        { "pattern": "{{ openclaw_home }}/scripts/run-substack-check.sh" },
+        { "pattern": "{{ openclaw_home }}/scripts/fetch-reddit-posts.sh" },
+        { "pattern": "{{ openclaw_home }}/scripts/fetch-xurl-timeline.sh" },
+        { "pattern": "/usr/bin/bash" },
+        { "pattern": "/bin/bash" },
+        { "pattern": "/usr/bin/python3" },
+        { "pattern": "/usr/bin/git" },
+        { "pattern": "{{ openclaw_bin.stdout }}" }
+      ]
     }
   }
 }
