@@ -22,7 +22,6 @@ This project is an automated **Ansible-based deployment** system for **hardened 
     - **RightClamp (Main):** General purpose agent.
     - **ThePincerMove:** Digest agent for news and social signals. Pinned to `mistral/mistral-medium-2508`.
     - **SirShellspeare:** Roleplay (RP) agent with world-event weaving.
-    - **Sociaclamps:** Social monitoring and Moltbook integration.
     - **Seneclaw:** Stoic coaching and reflection.
 
 ## Building and Running

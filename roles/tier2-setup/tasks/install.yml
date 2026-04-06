@@ -116,31 +116,6 @@
     - EXAMPLES.md
   when: rp_telegram_bottoken | default('') | length > 0 and llm_provider == 'minimax'
 
-- name: Create workspace-sociaclamps directories
-  file:
-    path: "{{ item }}"
-    state: directory
-    owner: "{{ openclaw_user }}"
-    group: "{{ openclaw_user }}"
-    mode: '0755'
-  loop:
-    - "{{ openclaw_home }}/workspace-sociaclamps"
-    - "{{ openclaw_home }}/workspace-sociaclamps/memory"
-  when: moltbook_telegram_bottoken | default('') | length > 0
-
-- name: Deploy Sociaclamps workspace files (AGENTS.md, SOUL.md)
-  copy:
-    src: "workspace-sociaclamps/{{ item }}"
-    dest: "{{ openclaw_home }}/workspace-sociaclamps/{{ item }}"
-    owner: "{{ openclaw_user }}"
-    group: "{{ openclaw_user }}"
-    mode: '0644'
-    force: false
-  loop:
-    - AGENTS.md
-    - SOUL.md
-  when: moltbook_telegram_bottoken | default('') | length > 0
-
 - name: Create workspace-seneclaw directories
   file:
     path: "{{ item }}"
@@ -256,33 +231,7 @@
   no_log: true
   when: molt_api_key | default('') | length > 0
 
-# ── Phase 4d: Moltbook Credentials ───────────────────────────────────────────
-# Write ~/.config/moltbook/credentials.json for the Sociaclamps subagent.
-# force: false — never overwrite so the original account info is preserved.
 
-- name: Create moltbook config directory
-  file:
-    path: "{{ openclaw_home }}/.config/moltbook"
-    state: directory
-    owner: "{{ openclaw_user }}"
-    group: "{{ openclaw_user }}"
-    mode: '0700'
-  when: moltbook_api_key | default('') | length > 0
-
-- name: Write moltbook credentials (skip if already present)
-  copy:
-    content: |
-      {
-          "api_key": "{{ moltbook_api_key }}",
-          "agent_name": "{{ moltbook_agent_name | default('Sociaclamps') }}"
-      }
-    dest: "{{ openclaw_home }}/.config/moltbook/credentials.json"
-    owner: "{{ openclaw_user }}"
-    group: "{{ openclaw_user }}"
-    mode: '0600'
-    force: false
-  no_log: true
-  when: moltbook_api_key | default('') | length > 0
 
 # ── Phase 5: Deploy Hardened Config Files ────────────────────────────────────
 
@@ -613,22 +562,6 @@
   when:
     - scripts_repo_slug | default('') | length > 0
     - molt_api_key | default('') | length > 0
-
-# ── Phase 9d.6: Sync moltbook skill to workspace-sociaclamps ──────────────────
-# Copies workspace-sociaclamps/skills/moltbook/ from the clamps-tools clone into
-# the Sociaclamps workspace. Gated on both --scripts-repo and --moltbook-api-key.
-
-- name: Sync hardened moltbook skill to workspace-sociaclamps
-  copy:
-    src: "{{ openclaw_home }}/scripts/workspace-sociaclamps/skills/moltbook/"
-    dest: "{{ openclaw_home }}/workspace-sociaclamps/skills/moltbook/"
-    owner: "{{ openclaw_user }}"
-    group: "{{ openclaw_user }}"
-    mode: preserve
-    remote_src: true
-  when:
-    - scripts_repo_slug | default('') | length > 0
-    - moltbook_telegram_bottoken | default('') | length > 0
 
 # ── Phase 9e: Cron Jobs ────────────────────────────────────────────────────────
 
@@ -1565,126 +1498,6 @@
   when: rp_telegram_bottoken | default('') | length > 0
   notify: Restart OpenClaw
 
-# ── Phase 9p: Moltbook Sociaclamps cron jobs ───────────────────────────────────
-# Two jobs: the Sociaclamps heartbeat (every 4h, routed to sociaclamps agent)
-# and the context update (30 min before heartbeat, routed to main agent).
-# Both gated on moltbook_api_key being set.
-
-- name: Configure Moltbook context update job (job-moltbook-context)
-  shell: |
-    python3 - <<'PYEOF'
-    import json, os
-
-    jobs_path = os.environ['HOME'] + '/.openclaw/cron/jobs.json'
-    job_id    = 'job-moltbook-context'
-    enable    = os.environ.get('MOLTBOOK_ENABLED') == '1'
-
-    os.makedirs(os.path.dirname(jobs_path), exist_ok=True)
-
-    try:
-        with open(jobs_path) as f:
-            store = json.load(f)
-    except (FileNotFoundError, json.JSONDecodeError):
-        store = {'version': 1, 'jobs': []}
-
-    before = json.dumps(store, sort_keys=True)
-
-    store['jobs'] = [j for j in store['jobs'] if j.get('jobId') != job_id and j.get('id') != job_id]
-
-    if enable:
-        store['jobs'].append({
-            'id':            job_id,
-            'jobId':         job_id,
-            'name':          'Moltbook context update',
-            'enabled':       False,
-            'schedule':      {'kind': 'cron', 'expr': '0 */4 * * *', 'staggerMs': 0},
-            'sessionTarget': 'isolated',
-            'wakeMode':      'now',
-            'payload':       {
-                'kind':    'agentTurn',
-                'message': 'Follow the instructions in {{ openclaw_home }}/scripts/moltbook-context-prompt.txt'
-            },
-            'delivery':      {'mode': 'none'}
-        })
-
-    after = json.dumps(store, sort_keys=True)
-
-    if before != after:
-        tmp = jobs_path + '.tmp'
-        with open(tmp, 'w') as f:
-            json.dump(store, f, indent=2)
-        os.replace(tmp, jobs_path)
-        print('changed')
-    else:
-        print('ok')
-    PYEOF
-  become_user: "{{ openclaw_user }}"
-  environment:
-    HOME: "{{ openclaw_home }}"
-    MOLTBOOK_ENABLED: "{{ '1' if moltbook_api_key | default('') | length > 0 else '0' }}"
-  register: moltbook_context_job
-  changed_when: "'changed' in moltbook_context_job.stdout"
-  when: moltbook_api_key | default('') | length > 0
-  notify: Restart OpenClaw
-
-- name: Configure Moltbook heartbeat job (job-moltbook-heartbeat)
-  shell: |
-    python3 - <<'PYEOF'
-    import json, os
-
-    jobs_path = os.environ['HOME'] + '/.openclaw/cron/jobs.json'
-    job_id    = 'job-moltbook-heartbeat'
-    enable    = os.environ.get('MOLTBOOK_ENABLED') == '1'
-
-    os.makedirs(os.path.dirname(jobs_path), exist_ok=True)
-
-    try:
-        with open(jobs_path) as f:
-            store = json.load(f)
-    except (FileNotFoundError, json.JSONDecodeError):
-        store = {'version': 1, 'jobs': []}
-
-    before = json.dumps(store, sort_keys=True)
-
-    store['jobs'] = [j for j in store['jobs'] if j.get('jobId') != job_id and j.get('id') != job_id]
-
-    if enable:
-        store['jobs'].append({
-            'id':            job_id,
-            'jobId':         job_id,
-            'name':          'Moltbook heartbeat',
-            'enabled':       False,
-            'schedule':      {'kind': 'cron', 'expr': '30 */4 * * *', 'staggerMs': 0},
-            'sessionTarget': 'isolated',
-            'wakeMode':      'now',
-            'agentId':       'sociaclamps',
-            'payload':       {
-                'kind':    'agentTurn',
-                'message': 'Follow the instructions in {{ openclaw_home }}/scripts/moltbook-heartbeat-prompt.txt'
-            },
-            'delivery':      {'mode': 'none'}
-        })
-
-    after = json.dumps(store, sort_keys=True)
-
-    if before != after:
-        tmp = jobs_path + '.tmp'
-        with open(tmp, 'w') as f:
-            json.dump(store, f, indent=2)
-        os.replace(tmp, jobs_path)
-        print('changed')
-    else:
-        print('ok')
-    PYEOF
-  become_user: "{{ openclaw_user }}"
-  environment:
-    HOME: "{{ openclaw_home }}"
-    MOLTBOOK_ENABLED: "{{ '1' if moltbook_api_key | default('') | length > 0 else '0' }}"
-  register: moltbook_heartbeat_job
-  changed_when: "'changed' in moltbook_heartbeat_job.stdout"
-  when: moltbook_api_key | default('') | length > 0
-  notify: Restart OpenClaw
-
 # ── Phase 9q: Seneclaw Stoic coaching cron jobs ───────────────────────────────
 # Four proactive coaching sessions per day (morning seed, midday check-in, evening
 # reflection) plus a weekly progress review on Sundays. All use agentId: seneclaw.
@@ -1816,72 +1629,6 @@
   register: seneclaw_cron_result
   changed_when: "'changed' in seneclaw_cron_result.stdout"
   when: stoic_telegram_bottoken | default('') | length > 0
-  notify: Restart OpenClaw
-
-# ── Phase 9r: Sociaclamps memory maintenance cron job ─────────────────────────
-# Weekly Sunday 09:00 UTC — runs the sociaclamps agent with the memory maintenance
-# prompt. No API calls, just file tidying: prune activity.md, graduate durable
-# insights to knowledge.md. Gated on moltbook_api_key.
-# Schedule note: Moltbook heartbeat runs at 08:30 Sunday (30 */4), Seneclaw weekly
-# review at 10:00 Sunday — 09:00 sits cleanly between them.
-
-- name: Configure Sociaclamps memory maintenance job (job-sociaclamps-memory-maintenance)
-  shell: |
-    python3 - <<'PYEOF'
-    import json, os
-
-    jobs_path = os.environ['HOME'] + '/.openclaw/cron/jobs.json'
-    job_id    = 'job-sociaclamps-memory-maintenance'
-    enable    = os.environ.get('MOLTBOOK_ENABLED') == '1'
-
-    os.makedirs(os.path.dirname(jobs_path), exist_ok=True)
-
-    try:
-        with open(jobs_path) as f:
-            store = json.load(f)
-    except (FileNotFoundError, json.JSONDecodeError):
-        store = {'version': 1, 'jobs': []}
-
-    before = json.dumps(store, sort_keys=True)
-
-    store['jobs'] = [j for j in store['jobs'] if j.get('jobId') != job_id and j.get('id') != job_id]
-
-    if enable:
-        home = os.environ['HOME']
-        store['jobs'].append({
-            'id':            job_id,
-            'jobId':         job_id,
-            'name':          'Sociaclamps memory maintenance',
-            'enabled':       False,
-            'schedule':      {'kind': 'cron', 'expr': '0 8 * * 0', 'staggerMs': 0},
-            'sessionTarget': 'isolated',
-            'wakeMode':      'now',
-            'agentId':       'sociaclamps',
-            'payload':       {
-                'kind':    'agentTurn',
-                'message': f'Follow the instructions in {home}/scripts/sociaclamps-memory-maintenance-prompt.txt'
-            },
-            'delivery':      {'mode': 'none'}
-        })
-
-    after = json.dumps(store, sort_keys=True)
-
-    if before != after:
-        tmp = jobs_path + '.tmp'
-        with open(tmp, 'w') as f:
-            json.dump(store, f, indent=2)
-        os.replace(tmp, jobs_path)
-        print('changed')
-    else:
-        print('ok')
-    PYEOF
-  become_user: "{{ openclaw_user }}"
-  environment:
-    HOME: "{{ openclaw_home }}"
-    MOLTBOOK_ENABLED: "{{ '1' if moltbook_api_key | default('') | length > 0 else '0' }}"
-  register: sociaclamps_memory_maint_result
-  changed_when: "'changed' in sociaclamps_memory_maint_result.stdout"
-  when: moltbook_api_key | default('') | length > 0
   notify: Restart OpenClaw
 
 # ── Phase 9s: Obsidian Vault Sync (git-backed, r/w) ──────────────────────────
