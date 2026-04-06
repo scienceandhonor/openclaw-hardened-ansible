@@ -196,41 +196,11 @@
             "maxTokens": 4096
           }
         ]
-      }{% if anthropic_api_key | default('') | length > 0 %},
-      "anthropic": {
-        "apiKey": "{{ anthropic_api_key }}",
-        "api": "anthropic-messages",
-        "baseUrl": "https://api.anthropic.com",
-        "models": [
-          {
-            "id": "claude-sonnet-4-6",
-            "name": "Claude Sonnet 4.6",
-            "reasoning": false,
-            "input": ["text", "image"],
-            "contextWindow": 200000,
-            "maxTokens": 8096
-          }
-        ]
-      }{% endif %}
+      }
 {% elif llm_provider == 'ollama' %}
       "ollama": {
         "baseUrl": "{{ llm_url }}"
-      }{% if anthropic_api_key | default('') | length > 0 %},
-      "anthropic": {
-        "apiKey": "{{ anthropic_api_key }}",
-        "api": "anthropic-messages",
-        "baseUrl": "https://api.anthropic.com",
-        "models": [
-          {
-            "id": "claude-sonnet-4-6",
-            "name": "Claude Sonnet 4.6",
-            "reasoning": false,
-            "input": ["text", "image"],
-            "contextWindow": 200000,
-            "maxTokens": 8096
-          }
-        ]
-      }{% endif %}
+      }
 {% endif %}
     }
   },
@@ -255,10 +225,6 @@
         "sirshellspeare": {
           "name": "SirShellspeare",
           "botToken": "{{ rp_telegram_bottoken }}"
-        }{% endif %}{% if stoic_telegram_bottoken | default('') | length > 0 %},
-        "seneclaw": {
-          "name": "Seneclaw",
-          "botToken": "{{ stoic_telegram_bottoken }}"
         }{% endif %}
       }
     }
@@ -266,11 +232,10 @@
     "telegram": { "dmPolicy": "pairing" }
 {% endif %}
   },
-{% if telegram_bottoken | default('') | length > 0 and (rp_telegram_bottoken | default('') | length > 0 or stoic_telegram_bottoken | default('') | length > 0) %}
+{% if telegram_bottoken | default('') | length > 0 and rp_telegram_bottoken | default('') | length > 0 %}
   "bindings": [
     { "agentId": "main", "match": { "channel": "telegram", "accountId": "default" } }{% if rp_telegram_bottoken | default('') | length > 0 %},
-    { "agentId": "sirshellspeare", "match": { "channel": "telegram", "accountId": "sirshellspeare" } }{% endif %}{% if stoic_telegram_bottoken | default('') | length > 0 %},
-    { "agentId": "seneclaw", "match": { "channel": "telegram", "accountId": "seneclaw" } }{% endif %}
+    { "agentId": "sirshellspeare", "match": { "channel": "telegram", "accountId": "sirshellspeare" } }{% endif %}
   ],
 {% endif %}
   "agents": {
@@ -345,23 +310,7 @@
         "tools": {
           "deny": ["browser", "process"]
         }
-      }{% endif %}{% endif %}{% if stoic_telegram_bottoken | default('') | length > 0 %},
-      {
-        "id": "seneclaw",
-        "name": "Seneclaw",
-        "workspace": "{{ openclaw_home }}/workspace-seneclaw",
-        "model": {
-{% if anthropic_api_key | default('') | length > 0 or llm_provider == 'anthropic' %}
-          "primary": "anthropic/claude-sonnet-4-6",
-{% else %}
-          "primary": "{{ 'openai' if llm_provider == 'openai_compatible' else llm_provider }}/{{ llm_model }}",
-{% endif %}
-          "fallbacks": []
-        },
-        "tools": {
-          "deny": ["browser", "process", "edit", "apply_patch", "gateway", "canvas"]
-        }
-      }{% endif %}
+      }{% endif %}{% endif %}
     ]
   },
   "tools": {

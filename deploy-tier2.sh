@@ -31,8 +31,6 @@ show_help() {
   --openrouter-key KEY  OpenRouter API key (enables OpenRouter models e.g. for PincerMove agent)"
     echo "  --molt-api-key KEY    Church of Molt API key (deploys crustafarianism skill — requires --scripts-repo)
   --molt-agent-name N   Agent name recorded in Molt credentials (default: Agent)
-  --anthropic-api-key KEY Anthropic API key for Claude Sonnet 4.6 fallback model
-  --stoic-telegram-bottoken T  Telegram bot token for Seneclaw Stoic coaching bot
   --obsidian-repo SLUG  GitHub repo slug for Obsidian vault (e.g. ocuser/my-vault)
   --mistral-key KEY     Mistral API key (routes PincerMove to mistral-medium-2508)"
     echo "  --vault-file FILE     Ansible Vault-encrypted vars file (e.g. vault-xurl.yml)"
@@ -73,8 +71,6 @@ GEMINI_KEY=""
 OPENROUTER_KEY=""
 MOLT_API_KEY=""
 MOLT_AGENT_NAME=""
-ANTHROPIC_API_KEY=""
-STOIC_TELEGRAM_BOTTOKEN=""
 OBSIDIAN_REPO=""
 MISTRAL_KEY=""
 
@@ -118,8 +114,6 @@ while [[ "$#" -gt 0 ]]; do
         --openrouter-key) OPENROUTER_KEY="$2"; shift ;;
         --molt-api-key) MOLT_API_KEY="$2"; shift ;;
         --molt-agent-name) MOLT_AGENT_NAME="$2"; shift ;;
-        --anthropic-api-key) ANTHROPIC_API_KEY="$2"; shift ;;
-        --stoic-telegram-bottoken) STOIC_TELEGRAM_BOTTOKEN="$2"; shift ;;
         --obsidian-repo) OBSIDIAN_REPO="$2"; shift ;;
         --mistral-key) MISTRAL_KEY="$2"; shift ;;
         --vault-file) VAULT_FILE="$2"; shift ;;
@@ -362,16 +356,6 @@ if [ -n "$OPENROUTER_KEY" ]; then
 else
     echo "OpenRouter: not configured"
 fi
-if [ -n "$ANTHROPIC_API_KEY" ]; then
-    echo "Anthropic: Claude Sonnet 4.6 fallback key=***"
-else
-    echo "Anthropic: not configured"
-fi
-if [ -n "$STOIC_TELEGRAM_BOTTOKEN" ]; then
-    echo "Stoic bot: Seneclaw token=***"
-else
-    echo "Stoic bot: not configured"
-fi
 if [ -n "$OBSIDIAN_REPO" ]; then
     echo "Obsidian:  $OBSIDIAN_REPO (r/w deploy key)"
 else
@@ -461,11 +445,9 @@ print(json.dumps({
     'openrouter_key':        sys.argv[19],
     'molt_api_key':          sys.argv[20],
     'molt_agent_name':       sys.argv[21],
-    'anthropic_api_key':     sys.argv[22],
-    'stoic_telegram_bottoken': sys.argv[23],
-    'obsidian_repo_slug':      sys.argv[24],
-    'mistral_key':             sys.argv[25],
-}))" "$LLM_PROVIDER" "$LLM_MODEL" "$LLM_URL" "$LLM_KEY" "$TELEGRAM_USERID" "$TELEGRAM_BOTTOKEN" "$BRAVE_KEY" "$LASTFM_KEY" "$LASTFM_USERNAME" "$SCRIPTS_REPO" "$EMAIL_IMAP_HOST" "$EMAIL_IMAP_USER" "$EMAIL_IMAP_PASSWORD" "$EMAIL_FOLDER" "$RP_TELEGRAM_BOTTOKEN" "$REDDIT_ENABLED" "$RESET_XURL_TOKEN" "$GEMINI_KEY" "$OPENROUTER_KEY" "$MOLT_API_KEY" "$MOLT_AGENT_NAME" "$ANTHROPIC_API_KEY" "$STOIC_TELEGRAM_BOTTOKEN" "$OBSIDIAN_REPO" "$MISTRAL_KEY")
+    'obsidian_repo_slug':      sys.argv[22],
+    'mistral_key':             sys.argv[23],
+}))" "$LLM_PROVIDER" "$LLM_MODEL" "$LLM_URL" "$LLM_KEY" "$TELEGRAM_USERID" "$TELEGRAM_BOTTOKEN" "$BRAVE_KEY" "$LASTFM_KEY" "$LASTFM_USERNAME" "$SCRIPTS_REPO" "$EMAIL_IMAP_HOST" "$EMAIL_IMAP_USER" "$EMAIL_IMAP_PASSWORD" "$EMAIL_FOLDER" "$RP_TELEGRAM_BOTTOKEN" "$REDDIT_ENABLED" "$RESET_XURL_TOKEN" "$GEMINI_KEY" "$OPENROUTER_KEY" "$MOLT_API_KEY" "$MOLT_AGENT_NAME" "$OBSIDIAN_REPO" "$MISTRAL_KEY")
 
 # Run Playbook
 ansible-playbook -i "$TEMP_INVENTORY" playbook-tier2.yml $ANSIBLE_ARGS \

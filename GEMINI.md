@@ -22,7 +22,6 @@ This project is an automated **Ansible-based deployment** system for **hardened 
     - **RightClamp (Main):** General purpose agent.
     - **ThePincerMove:** Digest agent for news and social signals. Pinned to `mistral/mistral-medium-2508`.
     - **SirShellspeare:** Roleplay (RP) agent with world-event weaving.
-    - **Seneclaw:** Stoic coaching and reflection.
 
 ## Building and Running
 
@@ -60,7 +59,6 @@ This project is an automated **Ansible-based deployment** system for **hardened 
 - **Reddit (Phase 9m):** Hourly system cron fetch → `reddit-state/undigested.json`. Agent digest at 07:30 and 16:30 UTC.
 - **xurl (Phase 9k):** Hourly system cron fetch → `timeline-state/undigested.json`. Agent digest at 07:15 and 16:15 UTC. Daily token refresh at 03:30 UTC.
 - **RP World Events (Phase 9o):** Hourly signal collection (`gather-world-signals.sh`) → `world-events/pending-signals.json`. RightClamp generates events at 11:00/22:00 UTC → `workspace-rp/pending-events.json`. SirShellspeare nudges at 19:00 UTC.
-- **Stoic Coaching (Phase 9q):** Daily theme capture at 06:55 UTC. Seneclaw morning seed (07:20), midday check-in (12:00), evening reflection (19:30), Sunday review (10:00).
 - **Obsidian Sync (Phase 9s):** Git-backed R/W vault in `~/obsidian-vault/`. Hourly pull. Post-merge hook triggers scan/summarize.
 
 ## Important Files
