@@ -20,9 +20,7 @@ tools:
       - "{{ openclaw_home }}/workspace"
       - "{{ openclaw_home }}/scripts"
       - "{{ openclaw_home }}/feature-tips-state"
-{% if llm_provider == 'minimax' %}
       - "{{ openclaw_home }}/workspace-pincermove"
-{% endif %}
 {% if rp_telegram_bottoken | default('') | length > 0 %}
       - "{{ openclaw_home }}/workspace-rp"
       - "{{ openclaw_home }}/world-events"

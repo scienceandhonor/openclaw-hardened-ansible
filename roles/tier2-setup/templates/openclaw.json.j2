@@ -287,7 +287,7 @@
 {% endif %}
           ]
         }
-      }{% if llm_provider == 'minimax' %},
+      },
       {
         "id": "pincermove",
         "name": "ThePincerMove",
@@ -299,7 +299,7 @@
         "tools": {
           "deny": ["write", "edit", "apply_patch", "browser", "process"]
         }
-      }{% if rp_telegram_bottoken | default('') | length > 0 %},
+      {% if rp_telegram_bottoken | default('') | length > 0 %},
       {
         "id": "sirshellspeare",
         "name": "SirShellspeare",

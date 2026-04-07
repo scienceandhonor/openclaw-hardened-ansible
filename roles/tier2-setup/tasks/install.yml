@@ -72,7 +72,6 @@
   loop:
     - "{{ openclaw_home }}/workspace-pincermove"
     - "{{ openclaw_home }}/workspace-pincermove/memory"
-  when: llm_provider == 'minimax'
 
 - name: Deploy ThePincerMove workspace files (AGENTS.md, SOUL.md)
   copy:
@@ -85,7 +84,6 @@
   loop:
     - AGENTS.md
     - SOUL.md
-  when: llm_provider == 'minimax'
 
 - name: Create SirShellspeare RP agent workspace
   file:
@@ -584,7 +582,8 @@
                 'kind':    'agentTurn',
                 'message': 'Run {{ openclaw_home }}/scripts/fetch-lastfm-artists.sh to sync Last.fm recently played artists. Report how many new artists were added.'
             },
-            'delivery':      {'mode': 'none'}
+            'delivery':      {'mode': 'none'},
+            'agentId':       'pincermove'
         })
 
     after = json.dumps(store, sort_keys=True)
@@ -735,12 +734,11 @@
     if enable:
         delivery  = {'mode': 'announce', 'channel': 'telegram', 'to': os.environ.get('TELEGRAM_USERID', '')} if tg_on else {'mode': 'none'}
         message   = 'Run {{ openclaw_home }}/scripts/run-substack-digest.sh then follow the instructions in {{ openclaw_home }}/scripts/substack-prompt.txt'
-        agent_id  = os.environ.get('PINCERMOVE_AGENT_ID', '')
         for job_id, name, expr in [
             ('substack-digest-morning', 'Substack digest (morning)', '45 5 * * *'),
             ('substack-digest-evening', 'Substack digest (evening)', '0 15 * * *'),
         ]:
-            job = {
+            store['jobs'].append({
                 'id':            job_id,
                 'jobId':         job_id,
                 'name':          name,
@@ -750,10 +748,8 @@
                 'wakeMode':      'now',
                 'payload':       {'kind': 'agentTurn', 'message': message},
                 'delivery':      delivery,
-            }
-            if agent_id:
-                job['agentId'] = agent_id
-            store['jobs'].append(job)
+                'agentId':       'pincermove',
+            })
 
     after = json.dumps(store, sort_keys=True)
 
@@ -772,7 +768,6 @@
     SUBSTACK_ENABLED: "{{ '1' if email_imap_host | default('') | length > 0 else '0' }}"
     TELEGRAM_ENABLED: "{{ '1' if telegram_userid | default('') | length > 0 else '0' }}"
     TELEGRAM_USERID: "{{ telegram_userid | default('') }}"
-    PINCERMOVE_AGENT_ID: "{{ 'pincermove' if llm_provider == 'minimax' else '' }}"
   register: substack_cron_result
   changed_when: "'changed' in substack_cron_result.stdout"
   notify: Restart OpenClaw
@@ -804,8 +799,7 @@
     store['jobs'] = [j for j in store['jobs'] if j.get('jobId') != job_id and j.get('id') != job_id]
 
     if enable:
-        agent_id = os.environ.get('PINCERMOVE_AGENT_ID', '')
-        job = {
+        store['jobs'].append({
             'id':            job_id,
             'jobId':         job_id,
             'name':          'Daily stoic quote',
@@ -817,11 +811,9 @@
                 'kind':    'agentTurn',
                 'message': 'Run {{ openclaw_home }}/scripts/daily-stoic.py and reply with only its output.'
             },
-            'delivery':      {'mode': 'announce', 'channel': 'telegram', 'to': os.environ.get('TELEGRAM_USERID', '')} if tg_on else {'mode': 'none'}
-        }
-        if agent_id:
-            job['agentId'] = agent_id
-        store['jobs'].append(job)
+            'delivery':      {'mode': 'announce', 'channel': 'telegram', 'to': os.environ.get('TELEGRAM_USERID', '')} if tg_on else {'mode': 'none'},
+            'agentId':       'pincermove',
+        })
 
     after = json.dumps(store, sort_keys=True)
 
@@ -840,7 +832,6 @@
     STOIC_ENABLED: "{{ '1' if scripts_repo_slug | default('') | length > 0 else '0' }}"
     TELEGRAM_ENABLED: "{{ '1' if telegram_userid | default('') | length > 0 else '0' }}"
     TELEGRAM_USERID: "{{ telegram_userid | default('') }}"
-    PINCERMOVE_AGENT_ID: "{{ 'pincermove' if llm_provider == 'minimax' else '' }}"
   register: stoic_cron_result
   changed_when: "'changed' in stoic_cron_result.stdout"
   when: scripts_repo_slug | default('') | length > 0
@@ -873,8 +864,7 @@
     store['jobs'] = [j for j in store['jobs'] if j.get('jobId') != job_id and j.get('id') != job_id]
 
     if tg_on:
-        agent_id = os.environ.get('PINCERMOVE_AGENT_ID', '')
-        job = {
+        store['jobs'].append({
             'id':            job_id,
             'jobId':         job_id,
             'name':          'MiniMax weekly summary reminder',
@@ -886,11 +876,9 @@
                 'kind':    'agentTurn',
                 'message': "Remind the user: it's Friday evening — time to run /minimax-analysis to generate the weekly MiniMax API usage report. Send only this reminder, nothing else."
             },
-            'delivery':      {'mode': 'announce', 'channel': 'telegram', 'to': os.environ.get('TELEGRAM_USERID', '')}
-        }
-        if agent_id:
-            job['agentId'] = agent_id
-        store['jobs'].append(job)
+            'delivery':      {'mode': 'announce', 'channel': 'telegram', 'to': os.environ.get('TELEGRAM_USERID', '')},
+            'agentId':       'pincermove'
+        })
 
     after = json.dumps(store, sort_keys=True)
 
@@ -908,7 +896,6 @@
     HOME: "{{ openclaw_home }}"
     TELEGRAM_ENABLED: "{{ '1' if telegram_userid | default('') | length > 0 else '0' }}"
     TELEGRAM_USERID: "{{ telegram_userid | default('') }}"
-    PINCERMOVE_AGENT_ID: "{{ 'pincermove' if llm_provider == 'minimax' else '' }}"
   register: minimax_reminder_result
   changed_when: "'changed' in minimax_reminder_result.stdout"
   when: telegram_userid | default('') | length > 0
@@ -1005,12 +992,11 @@
 
     if enable:
         delivery  = {'mode': 'announce', 'channel': 'telegram', 'to': os.environ.get('TELEGRAM_USERID', '')} if tg_on else {'mode': 'none'}
-        agent_id  = os.environ.get('PINCERMOVE_AGENT_ID', '')
         for job_id, name, expr in [
             ('xurl-timeline-digest-morning', 'X timeline digest (morning)', '15 6 * * *'),
             ('xurl-timeline-digest-evening', 'X timeline digest (evening)', '15 15 * * *'),
         ]:
-            job = {
+            store['jobs'].append({
                 'id':            job_id,
                 'jobId':         job_id,
                 'name':          name,
@@ -1023,10 +1009,8 @@
                     'message': "Run {{ openclaw_home }}/scripts/run-xurl-digest.sh — if it outputs [], stop immediately without sending any message. Otherwise follow {{ openclaw_home }}/scripts/xurl-timeline-prompt.txt"
                 },
                 'delivery': delivery,
-            }
-            if agent_id:
-                job['agentId'] = agent_id
-            store['jobs'].append(job)
+                'agentId':      'pincermove',
+            })
 
     after = json.dumps(store, sort_keys=True)
 
@@ -1045,7 +1029,6 @@
     XURL_ENABLED: "{{ '1' if xurl_credentials is defined else '0' }}"
     TELEGRAM_ENABLED: "{{ '1' if telegram_userid | default('') | length > 0 else '0' }}"
     TELEGRAM_USERID: "{{ telegram_userid | default('') }}"
-    PINCERMOVE_AGENT_ID: "{{ 'pincermove' if llm_provider == 'minimax' else '' }}"
   register: xurl_digest_cron_result
   changed_when: "'changed' in xurl_digest_cron_result.stdout"
   when: xurl_credentials is defined
@@ -1099,12 +1082,11 @@
 
     if enable:
         delivery  = {'mode': 'announce', 'channel': 'telegram', 'to': os.environ.get('TELEGRAM_USERID', '')} if tg_on else {'mode': 'none'}
-        agent_id  = os.environ.get('PINCERMOVE_AGENT_ID', '')
         for job_id, name, expr in [
             ('reddit-digest-morning', 'Reddit digest (morning)', '30 6 * * *'),
             ('reddit-digest-evening', 'Reddit digest (evening)', '30 15 * * *'),
         ]:
-            job = {
+            store['jobs'].append({
                 'id':            job_id,
                 'jobId':         job_id,
                 'name':          name,
@@ -1117,10 +1099,8 @@
                     'message': 'Run {{ openclaw_home }}/scripts/run-reddit-digest.sh — if it outputs [], stop immediately without sending any message. Otherwise follow {{ openclaw_home }}/scripts/reddit-prompt.txt'
                 },
                 'delivery': delivery,
-            }
-            if agent_id:
-                job['agentId'] = agent_id
-            store['jobs'].append(job)
+                'agentId':      'pincermove',
+            })
 
     after = json.dumps(store, sort_keys=True)
 
@@ -1139,7 +1119,6 @@
     REDDIT_ENABLED: "{{ '1' if reddit_enabled | default(false) | bool else '0' }}"
     TELEGRAM_ENABLED: "{{ '1' if telegram_userid | default('') | length > 0 else '0' }}"
     TELEGRAM_USERID: "{{ telegram_userid | default('') }}"
-    PINCERMOVE_AGENT_ID: "{{ 'pincermove' if llm_provider == 'minimax' else '' }}"
   register: reddit_cron_result
   changed_when: "'changed' in reddit_cron_result.stdout"
   when: reddit_enabled | default(false) | bool
@@ -1172,8 +1151,7 @@
     store['jobs'] = [j for j in store['jobs'] if j.get('jobId') != job_id and j.get('id') != job_id]
 
     if tg_on:
-        agent_id = os.environ.get('PINCERMOVE_AGENT_ID', '')
-        job = {
+        store['jobs'].append({
             'id':            job_id,
             'jobId':         job_id,
             'name':          'OpenClaw update check',
@@ -1185,11 +1163,9 @@
                 'kind':    'agentTurn',
                 'message': f"Run `openclaw update status --json` and parse the output. If `availability.available` is true, send a Telegram message to the user with `openclaw message send --channel telegram --to {os.environ.get('TELEGRAM_USERID', '')} --message '...'` saying a new OpenClaw version is available and including the value of `registry.latestVersion`. If no update is available, produce no output and stop."
             },
-            'delivery':      {'mode': 'none'}
-        }
-        if agent_id:
-            job['agentId'] = agent_id
-        store['jobs'].append(job)
+            'delivery':      {'mode': 'none'},
+            'agentId':       'pincermove'
+        })
 
     after = json.dumps(store, sort_keys=True)
 
@@ -1207,7 +1183,6 @@
     HOME: "{{ openclaw_home }}"
     TELEGRAM_ENABLED: "{{ '1' if telegram_userid | default('') | length > 0 else '0' }}"
     TELEGRAM_USERID: "{{ telegram_userid | default('') }}"
-    PINCERMOVE_AGENT_ID: "{{ 'pincermove' if llm_provider == 'minimax' else '' }}"
   register: openclaw_update_check_result
   changed_when: "'changed' in openclaw_update_check_result.stdout"
   when: telegram_userid | default('') | length > 0
@@ -1253,7 +1228,7 @@
     store['jobs'] = [j for j in store['jobs'] if j.get('jobId') != job_id and j.get('id') != job_id]
 
     if tg_on:
-        job = {
+        store['jobs'].append({
             'id':            job_id,
             'jobId':         job_id,
             'name':          'OpenClaw Friday feature tips',
@@ -1266,8 +1241,7 @@
                 'message': 'Follow the instructions in ~/scripts/openclaw-feature-tips-prompt.txt exactly.'
             },
             'delivery':      {'mode': 'announce', 'channel': 'telegram', 'to': os.environ.get('TELEGRAM_USERID', '')}
-        }
-        store['jobs'].append(job)
+        })
 
     after = json.dumps(store, sort_keys=True)
 
@@ -1312,7 +1286,7 @@
     store['jobs'] = [j for j in store['jobs'] if j.get('jobId') != job_id and j.get('id') != job_id]
 
     if tg_on:
-        job = {
+        store['jobs'].append({
             'id':            job_id,
             'jobId':         job_id,
             'name':          'OpenClaw Monday feature tip reminder',
@@ -1325,8 +1299,7 @@
                 'message': 'Follow the instructions in ~/scripts/openclaw-feature-tips-monday-reminder.txt exactly.'
             },
             'delivery':      {'mode': 'announce', 'channel': 'telegram', 'to': os.environ.get('TELEGRAM_USERID', '')}
-        }
-        store['jobs'].append(job)
+        })
 
     after = json.dumps(store, sort_keys=True)
 
