@@ -653,7 +653,8 @@
                 'kind':    'agentTurn',
                 'message': 'Run {{ openclaw_home }}/scripts/check-bands.sh then follow the instructions in {{ openclaw_home }}/scripts/bandcheck-prompt.txt'
             },
-            'delivery':      {'mode': 'announce', 'channel': 'telegram', 'to': os.environ.get('TELEGRAM_USERID', '')} if tg_on else {'mode': 'none'}
+            'delivery':      {'mode': 'announce', 'channel': 'telegram', 'to': os.environ.get('TELEGRAM_USERID', '')} if tg_on else {'mode': 'none'},
+            'agentId':      'pincermove'
         })
 
     after = json.dumps(store, sort_keys=True)
@@ -1240,7 +1241,8 @@
                 'kind':    'agentTurn',
                 'message': 'Follow the instructions in ~/scripts/openclaw-feature-tips-prompt.txt exactly.'
             },
-            'delivery':      {'mode': 'announce', 'channel': 'telegram', 'to': os.environ.get('TELEGRAM_USERID', '')}
+            'delivery':      {'mode': 'announce', 'channel': 'telegram', 'to': os.environ.get('TELEGRAM_USERID', '')},
+            'agentId':      'pincermove'
         })
 
     after = json.dumps(store, sort_keys=True)
@@ -1298,7 +1300,8 @@
                 'kind':    'agentTurn',
                 'message': 'Follow the instructions in ~/scripts/openclaw-feature-tips-monday-reminder.txt exactly.'
             },
-            'delivery':      {'mode': 'announce', 'channel': 'telegram', 'to': os.environ.get('TELEGRAM_USERID', '')}
+            'delivery':      {'mode': 'announce', 'channel': 'telegram', 'to': os.environ.get('TELEGRAM_USERID', '')},
+            'agentId':      'pincermove'
         })
 
     after = json.dumps(store, sort_keys=True)
@@ -1638,7 +1641,8 @@
                 'kind':    'agentTurn',
                 'message': f'Follow the instructions in {home}/scripts/obsidian-summarize-prompt.txt'
             },
-            'delivery':      {'mode': 'none'}
+            'delivery':      {'mode': 'none'},
+            'agentId':      'pincermove'
         })
 
     after = json.dumps(store, sort_keys=True)

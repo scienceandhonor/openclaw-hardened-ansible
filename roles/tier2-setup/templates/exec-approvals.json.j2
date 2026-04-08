@@ -7,16 +7,16 @@
     "autoAllowSkills": false
   },
   "agents": {
-    "dev": {
+    "main": {
+      "security": "deny",
+      "ask": "always"
+    },
+    "pincermove": {
       "security": "allowlist",
       "ask": "off",
       "allowlist": [
         { "pattern": "/usr/bin/bash" },
         { "pattern": "/bin/bash" },
-        { "pattern": "{{ openclaw_home }}/scripts/check-bands.sh" },
-        { "pattern": "{{ openclaw_home }}/scripts/fetch-lastfm-artists.sh" },
-        { "pattern": "/usr/bin/ls" },
-        { "pattern": "/bin/ls" },
         { "pattern": "/usr/bin/cat" },
         { "pattern": "/bin/cat" },
         { "pattern": "/usr/bin/grep" },
@@ -30,28 +30,32 @@
         { "pattern": "/usr/bin/git" },
         { "pattern": "{{ openclaw_bin.stdout }}" },
         { "pattern": "/usr/bin/date" },
-        { "pattern": "/bin/date" }
-      ]
-    },
-    "files": {
-      "security": "deny",
-      "ask": "always"
-    },
-    "pincermove": {
-      "security": "allowlist",
-      "ask": "off",
-      "allowlist": [
+        { "pattern": "/bin/date" },
         { "pattern": "{{ openclaw_home }}/scripts/run-substack-digest.sh" },
         { "pattern": "{{ openclaw_home }}/scripts/run-reddit-digest.sh" },
         { "pattern": "{{ openclaw_home }}/scripts/run-xurl-digest.sh" },
-        { "pattern": "{{ openclaw_home }}/scripts/run-substack-check.sh" },
         { "pattern": "{{ openclaw_home }}/scripts/fetch-reddit-posts.sh" },
         { "pattern": "{{ openclaw_home }}/scripts/fetch-xurl-timeline.sh" },
         { "pattern": "{{ openclaw_home }}/scripts/fetch-lastfm-artists.sh" },
         { "pattern": "{{ openclaw_home }}/scripts/daily-stoic.py" },
         { "pattern": "{{ openclaw_home }}/scripts/daily-stoic.toml" },
+        { "pattern": "{{ openclaw_home }}/scripts/check-bands.sh" },
+        { "pattern": "{{ openclaw_home }}/scripts/bandcheck-prompt.txt" },
+        { "pattern": "{{ openclaw_home }}/scripts/openclaw-feature-tips-prompt.txt" },
+        { "pattern": "{{ openclaw_home }}/scripts/openclaw-feature-tips-monday-reminder.txt" },
+        { "pattern": "{{ openclaw_home }}/scripts/obsidian-summarize-prompt.txt" }
+      ]
+    },
+    "sirshellspeare": {
+      "security": "allowlist",
+      "ask": "off",
+      "allowlist": [
         { "pattern": "/usr/bin/bash" },
         { "pattern": "/bin/bash" },
+        { "pattern": "/usr/bin/cat" },
+        { "pattern": "/bin/cat" },
+        { "pattern": "/usr/bin/grep" },
+        { "pattern": "/bin/grep" },
         { "pattern": "/usr/bin/python3" },
         { "pattern": "/usr/bin/git" },
         { "pattern": "{{ openclaw_bin.stdout }}" }
