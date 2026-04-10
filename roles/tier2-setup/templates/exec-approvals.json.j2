@@ -8,12 +8,14 @@
   },
   "agents": {
     "main": {
-      "security": "deny",
-      "ask": "always"
+      "security": "allowlist",
+      "ask": "on-miss",
+      "askFallback": "deny"
     },
     "pincermove": {
       "security": "allowlist",
-      "ask": "off",
+      "ask": "on-miss",
+      "askFallback": "deny",
       "allowlist": [
         { "pattern": "/usr/bin/bash" },
         { "pattern": "/bin/bash" },
@@ -43,7 +45,12 @@
         { "pattern": "{{ openclaw_home }}/scripts/bandcheck-prompt.txt" },
         { "pattern": "{{ openclaw_home }}/scripts/openclaw-feature-tips-prompt.txt" },
         { "pattern": "{{ openclaw_home }}/scripts/openclaw-feature-tips-monday-reminder.txt" },
-        { "pattern": "{{ openclaw_home }}/scripts/obsidian-summarize-prompt.txt" }
+        { "pattern": "{{ openclaw_home }}/scripts/obsidian-summarize-prompt.txt" },
+        { "pattern": "{{ openclaw_home }}/scripts/write-obsidian-summary.sh" },
+        { "pattern": "{{ openclaw_home }}/scripts/git-commit-obsidian.sh" },
+        { "pattern": "{{ openclaw_home }}/scripts/clear-obsidian-queue.sh" },
+        { "pattern": "{{ openclaw_home }}/scripts/fetch-url-content.sh" },
+        { "pattern": "{{ openclaw_home }}/scripts/fetch-url-content.py" }
       ]
     },
     "sirshellspeare": {
