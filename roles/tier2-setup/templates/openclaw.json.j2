@@ -139,15 +139,6 @@
               "cacheRead": 0.03,
               "cacheWrite": 0.375
             }
-          },
-          {
-            "id": "M2-her",
-            "name": "M2-her",
-            "reasoning": false,
-            "input": ["text"],
-            "contextWindow": 65536,
-            "maxTokens": 2048,
-            "cost": { "input": 0.0, "output": 0.0 }
           }
         ]
       }{% if anthropic_api_key | default('') | length > 0 %},
@@ -181,6 +172,7 @@
           }
         ]
       }{% endif %}
+    }
 {% elif llm_provider == 'openai_compatible' %}
       "openai": {
         "apiKey": "{{ llm_key }}",
@@ -202,7 +194,6 @@
         "baseUrl": "{{ llm_url }}"
       }
 {% endif %}
-    }
   },
   "channels": {
 {% if telegram_bottoken | default('') | length > 0 and telegram_userid | default('') | length > 0 %}
@@ -299,8 +290,8 @@
         "tools": {
           "deny": ["write", "edit", "apply_patch", "browser", "process"]
         }
-      },
-      {% if rp_telegram_bottoken | default('') | length > 0 %},
+      }
+{% if rp_telegram_bottoken | default('') | length > 0 %},
       {
         "id": "sirshellspeare",
         "name": "SirShellspeare",

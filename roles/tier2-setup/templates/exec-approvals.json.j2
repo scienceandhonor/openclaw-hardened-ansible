@@ -52,21 +52,6 @@
         { "pattern": "{{ openclaw_home }}/scripts/fetch-url-content.sh" },
         { "pattern": "{{ openclaw_home }}/scripts/fetch-url-content.py" }
       ]
-    },
-    "sirshellspeare": {
-      "security": "allowlist",
-      "ask": "off",
-      "allowlist": [
-        { "pattern": "/usr/bin/bash" },
-        { "pattern": "/bin/bash" },
-        { "pattern": "/usr/bin/cat" },
-        { "pattern": "/bin/cat" },
-        { "pattern": "/usr/bin/grep" },
-        { "pattern": "/bin/grep" },
-        { "pattern": "/usr/bin/python3" },
-        { "pattern": "/usr/bin/git" },
-        { "pattern": "{{ openclaw_bin.stdout }}" }
-      ]
     }
   }
 }

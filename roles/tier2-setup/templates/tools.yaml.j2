@@ -21,10 +21,6 @@ tools:
       - "{{ openclaw_home }}/scripts"
       - "{{ openclaw_home }}/feature-tips-state"
       - "{{ openclaw_home }}/workspace-pincermove"
-{% if rp_telegram_bottoken | default('') | length > 0 %}
-      - "{{ openclaw_home }}/workspace-rp"
-      - "{{ openclaw_home }}/world-events"
-{% endif %}
 {% if obsidian_repo_slug | default('') | length > 0 %}
       - "{{ openclaw_home }}/obsidian-vault"
       - "{{ openclaw_home }}/obsidian-state"

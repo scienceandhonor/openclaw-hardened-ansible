@@ -21,8 +21,7 @@ This project is an automated **Ansible-based deployment** system for **hardened 
 3.  **Multiple Specialized Agents:** Deployment configures distinct workspaces and personas:
     - **RightClamp (Main):** General purpose agent.
     - **ThePincerMove:** Digest agent for news and social signals. Pinned to `mistral/mistral-medium-2508`.
-    - **SirShellspeare:** Roleplay (RP) agent with world-event weaving.
-
+    
 ## Building and Running
 
 ### Deployment
@@ -58,7 +57,6 @@ This project is an automated **Ansible-based deployment** system for **hardened 
 - **Substack (Phase 9f):** Hourly system cron fetch → `email-state/undigested.json`. Agent digest at 06:45 and 16:00 UTC.
 - **Reddit (Phase 9m):** Hourly system cron fetch → `reddit-state/undigested.json`. Agent digest at 07:30 and 16:30 UTC.
 - **xurl (Phase 9k):** Hourly system cron fetch → `timeline-state/undigested.json`. Agent digest at 07:15 and 16:15 UTC. Daily token refresh at 03:30 UTC.
-- **RP World Events (Phase 9o):** Hourly signal collection (`gather-world-signals.sh`) → `world-events/pending-signals.json`. RightClamp generates events at 11:00/22:00 UTC → `workspace-rp/pending-events.json`. SirShellspeare nudges at 19:00 UTC.
 - **Obsidian Sync (Phase 9s):** Git-backed R/W vault in `~/obsidian-vault/`. Hourly pull. Post-merge hook triggers scan/summarize.
 
 ## Important Files

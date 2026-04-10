@@ -25,8 +25,7 @@ show_help() {
     echo "  --email-imap-user U   IMAP login address"
     echo "  --email-imap-password P  IMAP app password"
     echo "  --email-folder F      IMAP folder/label to poll (default: INBOX)"
-    echo "  --rp-telegram-bottoken T  Telegram bot token for SirShellspeare RP bot (MiniMax only)
-  --enable-reddit       Enable Reddit digest (uses public JSON API — no credentials needed)"
+    echo "  --enable-reddit       Enable Reddit digest (uses public JSON API — no credentials needed)"
     echo "  --gemini-key KEY      Gemini API key (enables semantic memory search via embeddings)
   --openrouter-key KEY  OpenRouter API key (enables OpenRouter models e.g. for PincerMove agent)"
     echo "  --molt-api-key KEY    Church of Molt API key (deploys crustafarianism skill — requires --scripts-repo)
@@ -62,7 +61,6 @@ EMAIL_IMAP_HOST=""
 EMAIL_IMAP_USER=""
 EMAIL_IMAP_PASSWORD=""
 EMAIL_FOLDER=""
-RP_TELEGRAM_BOTTOKEN=""
 REDDIT_ENABLED=false
 VAULT_FILE=""
 VAULT_PASSWORD=""
@@ -107,7 +105,6 @@ while [[ "$#" -gt 0 ]]; do
         --email-imap-user) EMAIL_IMAP_USER="$2"; shift ;;
         --email-imap-password) EMAIL_IMAP_PASSWORD="$2"; shift ;;
         --email-folder) EMAIL_FOLDER="$2"; shift ;;
-        --rp-telegram-bottoken) RP_TELEGRAM_BOTTOKEN="$2"; shift ;;
         --enable-reddit) REDDIT_ENABLED=true ;;
         --reset-xurl-token) RESET_XURL_TOKEN=true ;;
         --gemini-key) GEMINI_KEY="$2"; shift ;;
@@ -336,11 +333,6 @@ if [ -n "$EMAIL_IMAP_HOST" ]; then
 else
     echo "Email:     not configured"
 fi
-if [ -n "$RP_TELEGRAM_BOTTOKEN" ]; then
-    echo "RP bot:    SirShellspeare token=***"
-else
-    echo "RP bot:    not configured"
-fi
 if [ "$REDDIT_ENABLED" = true ]; then
     echo "Reddit:    enabled (public JSON API)"
 else
@@ -437,17 +429,16 @@ print(json.dumps({
     'email_imap_host':     sys.argv[11],
     'email_imap_user':     sys.argv[12],
     'email_imap_password': sys.argv[13],
-    'email_imap_folder':   sys.argv[14],
-    'rp_telegram_bottoken': sys.argv[15],
-    'reddit_enabled':        sys.argv[16] == 'true',
-    'xurl_force_token':      sys.argv[17] == 'true',
-    'gemini_key':            sys.argv[18],
-    'openrouter_key':        sys.argv[19],
-    'molt_api_key':          sys.argv[20],
-    'molt_agent_name':       sys.argv[21],
-    'obsidian_repo_slug':      sys.argv[22],
-    'mistral_key':             sys.argv[23],
-}))" "$LLM_PROVIDER" "$LLM_MODEL" "$LLM_URL" "$LLM_KEY" "$TELEGRAM_USERID" "$TELEGRAM_BOTTOKEN" "$BRAVE_KEY" "$LASTFM_KEY" "$LASTFM_USERNAME" "$SCRIPTS_REPO" "$EMAIL_IMAP_HOST" "$EMAIL_IMAP_USER" "$EMAIL_IMAP_PASSWORD" "$EMAIL_FOLDER" "$RP_TELEGRAM_BOTTOKEN" "$REDDIT_ENABLED" "$RESET_XURL_TOKEN" "$GEMINI_KEY" "$OPENROUTER_KEY" "$MOLT_API_KEY" "$MOLT_AGENT_NAME" "$OBSIDIAN_REPO" "$MISTRAL_KEY")
+    'email_imap_folder':     sys.argv[14],
+    'reddit_enabled':        sys.argv[15] == 'true',
+    'xurl_force_token':      sys.argv[16] == 'true',
+    'gemini_key':            sys.argv[17],
+    'openrouter_key':        sys.argv[18],
+    'molt_api_key':          sys.argv[19],
+    'molt_agent_name':       sys.argv[20],
+    'obsidian_repo_slug':    sys.argv[21],
+    'mistral_key':           sys.argv[22],
+}))" "$LLM_PROVIDER" "$LLM_MODEL" "$LLM_URL" "$LLM_KEY" "$TELEGRAM_USERID" "$TELEGRAM_BOTTOKEN" "$BRAVE_KEY" "$LASTFM_KEY" "$LASTFM_USERNAME" "$SCRIPTS_REPO" "$EMAIL_IMAP_HOST" "$EMAIL_IMAP_USER" "$EMAIL_IMAP_PASSWORD" "$EMAIL_FOLDER" "$REDDIT_ENABLED" "$RESET_XURL_TOKEN" "$GEMINI_KEY" "$OPENROUTER_KEY" "$MOLT_API_KEY" "$MOLT_AGENT_NAME" "$OBSIDIAN_REPO" "$MISTRAL_KEY")
 
 # Run Playbook
 ansible-playbook -i "$TEMP_INVENTORY" playbook-tier2.yml $ANSIBLE_ARGS \
