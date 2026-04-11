@@ -28,8 +28,8 @@
 
 # ── Phase 2: Install OpenClaw ────────────────────────────────────────────────
 
-- name: Install OpenClaw globally (version 2026.4.5)
-  command: npm install -g openclaw@2026.4.5
+- name: Install OpenClaw globally (version 2026.4.10)
+  command: npm install -g openclaw@2026.4.10
   register: npm_install_result
   changed_when: "'added' in npm_install_result.stdout or 'updated' in npm_install_result.stdout"
 
