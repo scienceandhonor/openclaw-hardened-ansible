@@ -7,7 +7,7 @@ This repository contains Ansible automation for OpenClaw deployments.
 - `deploy-tier2.sh` and `playbook-tier2.yml` are the **minimal tier 2 bootstrap** path.
 - `deploy.sh` and `playbook.yml` remain the **tier 3 container stack** path.
 
-The tier 2 bootstrap is intentionally narrow: it provisions a new VPS, installs OpenClaw, and leaves the instance itself as the source of truth for ongoing agent configuration.
+The tier 2 bootstrap is intentionally narrow: it provisions a new VPS, installs OpenClaw, and leaves the instance itself as the source of truth for ongoing agent configuration. The current default is a **moderate security** profile, not a fully unrestricted host.
 
 ## Tier 2 Scope
 
@@ -24,6 +24,7 @@ Tier 2 should only provision:
 - Optional Telegram, Brave Search, and Gemini embedding config
 - Optional OpenAI Codex OAuth bootstrap by seeding `~/.codex/auth.json`
 - Optional explicit seed copy of Git-tracked legacy scripts into `~/workspace/legacy-scripts`
+- Moderate host tool restrictions via `tools.yaml` and `exec-approvals.json`
 
 Tier 2 should not manage:
 
@@ -54,6 +55,7 @@ Do not switch tier 2 to:
 - Keep `deploy-tier2.sh` limited to bootstrap inputs only.
 - Prefer idempotent Ansible tasks over shell-heavy post-provisioning flows.
 - If adding tier 2 behavior, bias toward removing policy from Ansible and letting the deployed instance manage itself.
+- Keep the moderate security boundary intact: workspace-focused filesystem access, denied secret paths, and exec via a small allowlist including the `openclaw` binary.
 - When searching the repo, prefer `rg` and `rg --files`.
 
 ## Validation

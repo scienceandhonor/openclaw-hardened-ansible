@@ -137,6 +137,22 @@
     mode: "0600"
   notify: Restart OpenClaw
 
+- name: Deploy tools.yaml
+  template:
+    src: tools.yaml.j2
+    dest: "{{ openclaw_home }}/.openclaw/tools.yaml"
+    owner: "{{ openclaw_user }}"
+    group: "{{ openclaw_user }}"
+    mode: "0600"
+
+- name: Deploy exec-approvals.json
+  template:
+    src: exec-approvals.json.j2
+    dest: "{{ openclaw_home }}/.openclaw/exec-approvals.json"
+    owner: "{{ openclaw_user }}"
+    group: "{{ openclaw_user }}"
+    mode: "0600"
+
 - name: Create Node.js compile cache directory
   file:
     path: /var/tmp/openclaw-compile-cache

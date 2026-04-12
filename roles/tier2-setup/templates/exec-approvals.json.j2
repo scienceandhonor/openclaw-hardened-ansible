@@ -1,0 +1,34 @@
+{
+  "version": 1,
+  "defaults": {
+    "security": "allowlist",
+    "ask": "on-miss",
+    "askFallback": "deny",
+    "autoAllowSkills": false
+  },
+  "agents": {
+    "main": {
+      "security": "allowlist",
+      "ask": "on-miss",
+      "askFallback": "deny",
+      "allowlist": [
+        { "pattern": "/usr/bin/bash" },
+        { "pattern": "/bin/bash" },
+        { "pattern": "/usr/bin/ls" },
+        { "pattern": "/bin/ls" },
+        { "pattern": "/usr/bin/cat" },
+        { "pattern": "/bin/cat" },
+        { "pattern": "/usr/bin/grep" },
+        { "pattern": "/bin/grep" },
+        { "pattern": "/usr/bin/head" },
+        { "pattern": "/usr/bin/tail" },
+        { "pattern": "/usr/bin/find" },
+        { "pattern": "/bin/find" },
+        { "pattern": "/usr/bin/wc" },
+        { "pattern": "/usr/bin/sort" },
+        { "pattern": "/usr/bin/git" },
+        { "pattern": "{{ openclaw_bin.stdout }}" }
+      ]
+    }
+  }
+}

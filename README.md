@@ -2,7 +2,7 @@
 
 This repository contains two deployment paths:
 
-- **Tier 2:** minimal direct-host bootstrap for a new OpenClaw VPS
+- **Tier 2:** minimal direct-host bootstrap for a new OpenClaw VPS with moderate security defaults
 - **Tier 3:** full containerized hardened stack with Podman, LiteLLM, and Squid
 
 ## Tier 2 Minimal Bootstrap
@@ -19,6 +19,7 @@ Tier 2 provisions a new Debian/Ubuntu VPS with:
 - optional OpenAI Codex OAuth bootstrap via `~/.codex/auth.json`
 - optional Telegram, Brave Search, and Gemini embeddings
 - optional explicit seed copy of Git-tracked legacy scripts into `~/workspace/legacy-scripts`
+- moderate host restrictions for filesystem access and exec approvals
 
 Tier 2 does **not** manage ongoing OpenClaw behavior after bootstrap. Agents, cron jobs, skills, and application-level feature changes are expected to be managed on the instance itself.
 
