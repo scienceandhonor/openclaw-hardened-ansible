@@ -45,7 +45,7 @@
   loop:
     - { path: "{{ openclaw_home }}/.openclaw", mode: "0700" }
     - { path: "{{ openclaw_home }}/.openclaw/credentials", mode: "0700" }
-    - { path: "{{ openclaw_home }}/workspace", mode: "0755" }
+    - { path: "{{ openclaw_home }}/workspace", mode: "0700" }
 
 - name: Create legacy scripts directories
   file:
@@ -53,7 +53,7 @@
     state: directory
     owner: "{{ openclaw_user }}"
     group: "{{ openclaw_user }}"
-    mode: "0755"
+    mode: "0700"
   loop: "{{ ((legacy_scripts_files | default([])) | map('dirname') | reject('equalto', '.') | unique | list) }}"
   when: legacy_scripts_enabled | default(false) | bool
 
