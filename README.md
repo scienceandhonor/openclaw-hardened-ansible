@@ -18,7 +18,7 @@ Tier 2 provisions a new Debian/Ubuntu VPS with:
 - initial config for one main agent
 - optional OpenAI Codex OAuth bootstrap via `~/.codex/auth.json`
 - optional Telegram, Brave Search, and Gemini embeddings
-- optional seed copy of a local legacy scripts directory into `~/workspace/legacy-scripts`
+- optional explicit seed copy of Git-tracked legacy scripts into `~/workspace/legacy-scripts`
 
 Tier 2 does **not** manage ongoing OpenClaw behavior after bootstrap. Agents, cron jobs, skills, and application-level feature changes are expected to be managed on the instance itself.
 
@@ -49,6 +49,7 @@ Tier 2 does **not** manage ongoing OpenClaw behavior after bootstrap. Agents, cr
 
 # Seed a local legacy scripts snapshot for in-instance migration work
 ./deploy-tier2.sh -t <IP> -p anthropic -m claude-sonnet-4-5 -k <API_KEY> \
+  --seed-legacy-scripts \
   --legacy-scripts-dir ../clamps-tools
 ```
 

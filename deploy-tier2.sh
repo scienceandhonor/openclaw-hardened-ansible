@@ -18,6 +18,7 @@ show_help() {
     echo "  --telegram-bottoken T Telegram bot token"
     echo "  --brave-key KEY       Brave Search API key"
     echo "  --gemini-key KEY      Gemini API key for memory embeddings"
+    echo "  --seed-legacy-scripts Copy a tracked-file snapshot into ~/workspace/legacy-scripts"
     echo "  --legacy-scripts-dir PATH"
     echo "                       Local directory to copy to ~/workspace/legacy-scripts"
     echo "  --codex-auth-file PATH"
@@ -41,8 +42,10 @@ TELEGRAM_USERID=""
 TELEGRAM_BOTTOKEN=""
 BRAVE_KEY=""
 GEMINI_KEY=""
+SEED_LEGACY_SCRIPTS=false
 LEGACY_SCRIPTS_DIR=""
 CODEX_AUTH_FILE=""
+LEGACY_SCRIPTS_FILES_JSON="[]"
 
 _ARGS=()
 for _arg in "$@"; do
@@ -69,6 +72,7 @@ while [[ "$#" -gt 0 ]]; do
         --telegram-bottoken) TELEGRAM_BOTTOKEN="$2"; shift ;;
         --brave-key) BRAVE_KEY="$2"; shift ;;
         --gemini-key) GEMINI_KEY="$2"; shift ;;
+        --seed-legacy-scripts) SEED_LEGACY_SCRIPTS=true ;;
         --legacy-scripts-dir) LEGACY_SCRIPTS_DIR="$2"; shift ;;
         --codex-auth-file) CODEX_AUTH_FILE="$2"; shift ;;
         -h|--help) show_help; exit 0 ;;
@@ -195,13 +199,35 @@ if [ -n "$TELEGRAM_USERID" ] && [ -z "$TELEGRAM_BOTTOKEN" ]; then
     exit 1
 fi
 
-if [ -z "$LEGACY_SCRIPTS_DIR" ] && [ -d "../clamps-tools" ]; then
-    LEGACY_SCRIPTS_DIR="../clamps-tools"
-fi
-
-if [ -n "$LEGACY_SCRIPTS_DIR" ] && [ ! -d "$LEGACY_SCRIPTS_DIR" ]; then
-    echo "Error: legacy scripts directory does not exist: $LEGACY_SCRIPTS_DIR"
-    exit 1
+if [ "$SEED_LEGACY_SCRIPTS" = true ]; then
+    if [ -z "$LEGACY_SCRIPTS_DIR" ] && [ -d "../clamps-tools" ]; then
+        LEGACY_SCRIPTS_DIR="../clamps-tools"
+    fi
+    if [ -z "$LEGACY_SCRIPTS_DIR" ]; then
+        echo "Error: --seed-legacy-scripts requires --legacy-scripts-dir or a sibling ../clamps-tools checkout."
+        exit 1
+    fi
+    if [ ! -d "$LEGACY_SCRIPTS_DIR" ]; then
+        echo "Error: legacy scripts directory does not exist: $LEGACY_SCRIPTS_DIR"
+        exit 1
+    fi
+    if ! git -C "$LEGACY_SCRIPTS_DIR" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+        echo "Error: legacy scripts directory is not a git working tree: $LEGACY_SCRIPTS_DIR"
+        exit 1
+    fi
+    LEGACY_SCRIPTS_DIR=$(cd "$LEGACY_SCRIPTS_DIR" && pwd -P)
+    LEGACY_SCRIPTS_FILES_JSON=$(python3 -c "
+import json, subprocess, sys
+root = sys.argv[1]
+files = subprocess.check_output(['git', '-C', root, 'ls-files', '-z']).decode('utf-8').split('\0')
+files = [f for f in files if f]
+print(json.dumps(files))
+" "$LEGACY_SCRIPTS_DIR")
+else
+    if [ -n "$LEGACY_SCRIPTS_DIR" ]; then
+        echo "Error: --legacy-scripts-dir requires --seed-legacy-scripts."
+        exit 1
+    fi
 fi
 
 if [ -z "$CODEX_AUTH_FILE" ] && [ "$LLM_PROVIDER" = "openai-codex" ] && [ -f "$HOME/.codex/auth.json" ]; then
@@ -243,7 +269,7 @@ if [ "$LLM_PROVIDER" = "openai-codex" ]; then
         echo "Codex:     no local auth file found; manual login required after deploy"
     fi
 fi
-if [ -n "$LEGACY_SCRIPTS_DIR" ]; then
+if [ "$SEED_LEGACY_SCRIPTS" = true ]; then
     echo "Legacy:    $LEGACY_SCRIPTS_DIR -> ~/workspace/legacy-scripts"
 else
     echo "Legacy:    not configured"
@@ -292,9 +318,11 @@ print(json.dumps({
     'telegram_bottoken': sys.argv[6],
     'brave_key':         sys.argv[7],
     'gemini_key':        sys.argv[8],
-    'legacy_scripts_dir': sys.argv[9],
-    'codex_auth_file':   sys.argv[10],
-}))" "$LLM_PROVIDER" "$LLM_MODEL" "$LLM_URL" "$LLM_KEY" "$TELEGRAM_USERID" "$TELEGRAM_BOTTOKEN" "$BRAVE_KEY" "$GEMINI_KEY" "$LEGACY_SCRIPTS_DIR" "$CODEX_AUTH_FILE")
+    'legacy_scripts_enabled': sys.argv[9] == 'true',
+    'legacy_scripts_dir': sys.argv[10],
+    'legacy_scripts_files': json.loads(sys.argv[11]),
+    'codex_auth_file':   sys.argv[12],
+}))" "$LLM_PROVIDER" "$LLM_MODEL" "$LLM_URL" "$LLM_KEY" "$TELEGRAM_USERID" "$TELEGRAM_BOTTOKEN" "$BRAVE_KEY" "$GEMINI_KEY" "$SEED_LEGACY_SCRIPTS" "$LEGACY_SCRIPTS_DIR" "$LEGACY_SCRIPTS_FILES_JSON" "$CODEX_AUTH_FILE")
 
 ansible-playbook -i "$TEMP_INVENTORY" playbook-tier2.yml $ANSIBLE_ARGS \
     --extra-vars "$EXTRA_VARS"

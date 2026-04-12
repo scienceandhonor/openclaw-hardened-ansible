@@ -47,20 +47,25 @@
     - { path: "{{ openclaw_home }}/.openclaw/credentials", mode: "0700" }
     - { path: "{{ openclaw_home }}/workspace", mode: "0755" }
 
-- name: Seed legacy scripts into main workspace
+- name: Create legacy scripts directories
+  file:
+    path: "{{ openclaw_home }}/workspace/legacy-scripts/{{ item }}"
+    state: directory
+    owner: "{{ openclaw_user }}"
+    group: "{{ openclaw_user }}"
+    mode: "0755"
+  loop: "{{ ((legacy_scripts_files | default([])) | map('dirname') | reject('equalto', '.') | unique | list) }}"
+  when: legacy_scripts_enabled | default(false) | bool
+
+- name: Seed tracked legacy scripts into main workspace
   copy:
-    src: "{{ legacy_scripts_dir }}/"
-    dest: "{{ openclaw_home }}/workspace/legacy-scripts/"
+    src: "{{ legacy_scripts_dir }}/{{ item }}"
+    dest: "{{ openclaw_home }}/workspace/legacy-scripts/{{ item }}"
     owner: "{{ openclaw_user }}"
     group: "{{ openclaw_user }}"
     mode: preserve
-  when: legacy_scripts_dir | default('') | length > 0
-
-- name: Remove copied git metadata from legacy scripts snapshot
-  file:
-    path: "{{ openclaw_home }}/workspace/legacy-scripts/.git"
-    state: absent
-  when: legacy_scripts_dir | default('') | length > 0
+  loop: "{{ legacy_scripts_files | default([]) }}"
+  when: legacy_scripts_enabled | default(false) | bool
 
 - name: Create Codex auth directory
   file:
@@ -78,6 +83,7 @@
     owner: "{{ openclaw_user }}"
     group: "{{ openclaw_user }}"
     mode: "0600"
+    force: false
   no_log: true
   when:
     - llm_provider == 'openai-codex'

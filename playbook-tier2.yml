@@ -129,7 +129,9 @@
     telegram_bottoken: "{{ telegram_bottoken | default('', true) }}"
     brave_key: "{{ brave_key | default('', true) }}"
     gemini_key: "{{ gemini_key | default('', true) }}"
+    legacy_scripts_enabled: "{{ legacy_scripts_enabled | default(false) }}"
     legacy_scripts_dir: "{{ legacy_scripts_dir | default('', true) }}"
+    legacy_scripts_files: "{{ legacy_scripts_files | default([], true) }}"
     codex_auth_file: "{{ codex_auth_file | default('', true) }}"
 
   roles:
@@ -164,5 +166,5 @@
           - "🔎 Brave Search:         {{ 'configured' if brave_key | length > 0 else 'not configured' }}"
           - "🧠 Gemini embeddings:    {{ 'configured' if gemini_key | length > 0 else 'not configured' }}"
           - "🔐 Codex OAuth:          {{ 'seeded from local auth.json' if codex_auth_file | length > 0 else ('manual login required on VPS' if llm_provider == 'openai-codex' else 'not configured') }}"
-          - "📦 Legacy scripts:       {{ 'seeded to ~/workspace/legacy-scripts' if legacy_scripts_dir | length > 0 else 'not configured' }}"
+          - "📦 Legacy scripts:       {{ 'seeded to ~/workspace/legacy-scripts' if legacy_scripts_enabled | bool else 'not configured' }}"
           - "⚠️  Password auth DISABLED. Keep ssh-keys/{{ target_hostname }}.pem safe."
