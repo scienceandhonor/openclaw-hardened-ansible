@@ -18,6 +18,8 @@ show_help() {
     echo "  --telegram-bottoken T Telegram bot token"
     echo "  --brave-key KEY       Brave Search API key"
     echo "  --gemini-key KEY      Gemini API key for memory embeddings"
+    echo "  --legacy-scripts-dir PATH"
+    echo "                       Local directory to copy to ~/workspace/legacy-scripts"
     echo "  -h, --help            Show this help message"
     echo ""
     echo "Deploys a minimal OpenClaw Tier 2 bootstrap to an Ubuntu/Debian VPS."
@@ -37,6 +39,7 @@ TELEGRAM_USERID=""
 TELEGRAM_BOTTOKEN=""
 BRAVE_KEY=""
 GEMINI_KEY=""
+LEGACY_SCRIPTS_DIR=""
 
 _ARGS=()
 for _arg in "$@"; do
@@ -63,6 +66,7 @@ while [[ "$#" -gt 0 ]]; do
         --telegram-bottoken) TELEGRAM_BOTTOKEN="$2"; shift ;;
         --brave-key) BRAVE_KEY="$2"; shift ;;
         --gemini-key) GEMINI_KEY="$2"; shift ;;
+        --legacy-scripts-dir) LEGACY_SCRIPTS_DIR="$2"; shift ;;
         -h|--help) show_help; exit 0 ;;
         *) echo "Unknown parameter: $1"; exit 1 ;;
     esac
@@ -183,6 +187,15 @@ if [ -n "$TELEGRAM_USERID" ] && [ -z "$TELEGRAM_BOTTOKEN" ]; then
     exit 1
 fi
 
+if [ -z "$LEGACY_SCRIPTS_DIR" ] && [ -d "../clamps-tools" ]; then
+    LEGACY_SCRIPTS_DIR="../clamps-tools"
+fi
+
+if [ -n "$LEGACY_SCRIPTS_DIR" ] && [ ! -d "$LEGACY_SCRIPTS_DIR" ]; then
+    echo "Error: legacy scripts directory does not exist: $LEGACY_SCRIPTS_DIR"
+    exit 1
+fi
+
 echo ""
 echo "Deploying Tier 2 Minimal Bootstrap:"
 echo "----------------------------------------"
@@ -205,6 +218,11 @@ if [ -n "$GEMINI_KEY" ]; then
     echo "Gemini:    enabled (key=***)"
 else
     echo "Gemini:    not configured"
+fi
+if [ -n "$LEGACY_SCRIPTS_DIR" ]; then
+    echo "Legacy:    $LEGACY_SCRIPTS_DIR -> ~/workspace/legacy-scripts"
+else
+    echo "Legacy:    not configured"
 fi
 echo "----------------------------------------"
 
@@ -250,7 +268,8 @@ print(json.dumps({
     'telegram_bottoken': sys.argv[6],
     'brave_key':         sys.argv[7],
     'gemini_key':        sys.argv[8],
-}))" "$LLM_PROVIDER" "$LLM_MODEL" "$LLM_URL" "$LLM_KEY" "$TELEGRAM_USERID" "$TELEGRAM_BOTTOKEN" "$BRAVE_KEY" "$GEMINI_KEY")
+    'legacy_scripts_dir': sys.argv[9],
+}))" "$LLM_PROVIDER" "$LLM_MODEL" "$LLM_URL" "$LLM_KEY" "$TELEGRAM_USERID" "$TELEGRAM_BOTTOKEN" "$BRAVE_KEY" "$GEMINI_KEY" "$LEGACY_SCRIPTS_DIR")
 
 ansible-playbook -i "$TEMP_INVENTORY" playbook-tier2.yml $ANSIBLE_ARGS \
     --extra-vars "$EXTRA_VARS"

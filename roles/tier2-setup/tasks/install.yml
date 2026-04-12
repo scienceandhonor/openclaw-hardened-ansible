@@ -47,6 +47,21 @@
     - { path: "{{ openclaw_home }}/.openclaw/credentials", mode: "0700" }
     - { path: "{{ openclaw_home }}/workspace", mode: "0755" }
 
+- name: Seed legacy scripts into main workspace
+  copy:
+    src: "{{ legacy_scripts_dir }}/"
+    dest: "{{ openclaw_home }}/workspace/legacy-scripts/"
+    owner: "{{ openclaw_user }}"
+    group: "{{ openclaw_user }}"
+    mode: preserve
+  when: legacy_scripts_dir | default('') | length > 0
+
+- name: Remove copied git metadata from legacy scripts snapshot
+  file:
+    path: "{{ openclaw_home }}/workspace/legacy-scripts/.git"
+    state: absent
+  when: legacy_scripts_dir | default('') | length > 0
+
 - name: Check if gateway token already exists
   stat:
     path: "{{ openclaw_home }}/.openclaw/gateway.token"

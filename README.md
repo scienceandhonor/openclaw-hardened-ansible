@@ -17,6 +17,7 @@ Tier 2 provisions a new Debian/Ubuntu VPS with:
 - a loopback-bound gateway
 - initial config for one main agent
 - optional Telegram, Brave Search, and Gemini embeddings
+- optional seed copy of a local legacy scripts directory into `~/workspace/legacy-scripts`
 
 Tier 2 does **not** manage ongoing OpenClaw behavior after bootstrap. Agents, cron jobs, skills, and application-level feature changes are expected to be managed on the instance itself.
 
@@ -41,6 +42,10 @@ Tier 2 does **not** manage ongoing OpenClaw behavior after bootstrap. Agents, cr
   --telegram-bottoken <BOT_TOKEN> \
   --brave-key <BRAVE_API_KEY> \
   --gemini-key <GEMINI_API_KEY>
+
+# Seed a local legacy scripts snapshot for in-instance migration work
+./deploy-tier2.sh -t <IP> -p anthropic -m claude-sonnet-4-5 -k <API_KEY> \
+  --legacy-scripts-dir ../clamps-tools
 ```
 
 ## Tier 3 Hardened Stack
