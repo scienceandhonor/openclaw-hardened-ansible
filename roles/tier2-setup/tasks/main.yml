@@ -17,5 +17,5 @@
 - name: Install and Configure OpenClaw (Tier 2 — direct host)
   include_tasks: install.yml
 
-- name: Configure System Security (Firewall, Fail2Ban, SSH hardening)
+- name: Configure Minimal Host Security (SSH hardening)
   include_tasks: security.yml

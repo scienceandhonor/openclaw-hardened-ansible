@@ -33,21 +33,6 @@
     "consoleStyle": "compact",
     "redactSensitive": "tools"
   },
-{% if openrouter_key | default('') | length > 0 or mistral_key | default('') | length > 0 or llm_provider == 'minimax' %}
-  "env": {
-{% if llm_provider == 'minimax' %}
-    "MINIMAX_API_KEY": "{{ llm_key }}"{% if openrouter_key | default('') | length > 0 or mistral_key | default('') | length > 0 %},{% endif %}
-
-{% endif %}
-{% if openrouter_key | default('') | length > 0 %}
-    "OPENROUTER_API_KEY": "{{ openrouter_key }}"{% if mistral_key | default('') | length > 0 %},{% endif %}
-
-{% endif %}
-{% if mistral_key | default('') | length > 0 %}
-    "MISTRAL_API_KEY": "{{ mistral_key }}"
-{% endif %}
-  },
-{% endif %}
   "models": {
     "mode": "merge",
     "providers": {
@@ -64,15 +49,7 @@
             "input": ["text", "image"],
             "contextWindow": 200000,
             "maxTokens": 8096
-          }{% if stoic_telegram_bottoken | default('') | length > 0 and llm_model != 'claude-sonnet-4-6' %},
-          {
-            "id": "claude-sonnet-4-6",
-            "name": "Claude Sonnet 4.6",
-            "reasoning": false,
-            "input": ["text", "image"],
-            "contextWindow": 200000,
-            "maxTokens": 8096
-          }{% endif %}
+          }
         ]
       }
 {% elif llm_provider == 'openai' %}
@@ -90,22 +67,7 @@
             "maxTokens": 4096
           }
         ]
-      }{% if anthropic_api_key | default('') | length > 0 %},
-      "anthropic": {
-        "apiKey": "{{ anthropic_api_key }}",
-        "api": "anthropic-messages",
-        "baseUrl": "https://api.anthropic.com",
-        "models": [
-          {
-            "id": "claude-sonnet-4-6",
-            "name": "Claude Sonnet 4.6",
-            "reasoning": false,
-            "input": ["text", "image"],
-            "contextWindow": 200000,
-            "maxTokens": 8096
-          }
-        ]
-      }{% endif %}
+      }
 {% elif llm_provider == 'minimax' %}
       "minimax": {
         "api": "anthropic-messages",
@@ -118,61 +80,10 @@
             "reasoning": true,
             "input": ["text"],
             "contextWindow": 200000,
-            "maxTokens": 8192,
-            "cost": {
-              "input": 0.3,
-              "output": 1.2,
-              "cacheRead": 0.03,
-              "cacheWrite": 0.375
-            }
-          },
-          {
-            "id": "MiniMax-M2.1",
-            "name": "MiniMax M2.1",
-            "reasoning": false,
-            "input": ["text"],
-            "contextWindow": 200000,
-            "maxTokens": 8192,
-            "cost": {
-              "input": 0.3,
-              "output": 1.2,
-              "cacheRead": 0.03,
-              "cacheWrite": 0.375
-            }
+            "maxTokens": 8192
           }
         ]
-      }{% if anthropic_api_key | default('') | length > 0 %},
-      "anthropic": {
-        "apiKey": "{{ anthropic_api_key }}",
-        "api": "anthropic-messages",
-        "baseUrl": "https://api.anthropic.com",
-        "models": [
-          {
-            "id": "claude-sonnet-4-6",
-            "name": "Claude Sonnet 4.6",
-            "reasoning": false,
-            "input": ["text", "image"],
-            "contextWindow": 200000,
-            "maxTokens": 8096
-          }
-        ]
-      }{% endif %}{% if mistral_key | default('') | length > 0 %},
-      "mistral": {
-        "apiKey": "{{ mistral_key }}",
-        "api": "openai-completions",
-        "baseUrl": "https://api.mistral.ai/v1",
-        "models": [
-          {
-            "id": "mistral-medium-2508",
-            "name": "Mistral Medium 2508",
-            "reasoning": false,
-            "input": ["text"],
-            "contextWindow": 32768,
-            "maxTokens": 4096
-          }
-        ]
-      }{% endif %}
-    }
+      }
 {% elif llm_provider == 'openai_compatible' %}
       "openai": {
         "apiKey": "{{ llm_key }}",
@@ -194,6 +105,7 @@
         "baseUrl": "{{ llm_url }}"
       }
 {% endif %}
+    }
   },
   "channels": {
 {% if telegram_bottoken | default('') | length > 0 and telegram_userid | default('') | length > 0 %}
@@ -210,40 +122,21 @@
       "heartbeat": { "showOk": true, "showAlerts": true, "useIndicator": true },
       "accounts": {
         "default": {
-          "name": "RightClamp",
+          "name": "OpenClaw",
           "botToken": "{{ telegram_bottoken }}"
-        }{% if rp_telegram_bottoken | default('') | length > 0 %},
-        "sirshellspeare": {
-          "name": "SirShellspeare",
-          "botToken": "{{ rp_telegram_bottoken }}"
-        }{% endif %}
+        }
       }
     }
 {% else %}
     "telegram": { "dmPolicy": "pairing" }
 {% endif %}
   },
-{% if telegram_bottoken | default('') | length > 0 and rp_telegram_bottoken | default('') | length > 0 %}
-  "bindings": [
-    { "agentId": "main", "match": { "channel": "telegram", "accountId": "default" } }{% if rp_telegram_bottoken | default('') | length > 0 %},
-    { "agentId": "sirshellspeare", "match": { "channel": "telegram", "accountId": "sirshellspeare" } }{% endif %}
-  ],
-{% endif %}
   "agents": {
     "defaults": {
       "model": {
         "primary": "{{ 'openai' if llm_provider == 'openai_compatible' else llm_provider }}/{{ llm_model }}",
-        "fallbacks": [
-{% if llm_provider == 'minimax' %}
-          "minimax/MiniMax-M2.1"
-{% endif %}
-        ]
+        "fallbacks": []
       },
-{% if true %}
-      "models": {
-        "minimax/{{ llm_model }}": { "alias": "Minimax" }
-      },
-{% endif %}
       "heartbeat": { "every": "5m" },
       "contextTokens": 80000,
       "timeoutSeconds": 240,
@@ -267,43 +160,14 @@
     "list": [
       {
         "id": "main",
-        "name": "RightClamp",
+        "name": "Main",
         "workspace": "{{ openclaw_home }}/workspace",
         "default": true,
         "model": {
           "primary": "{{ 'openai' if llm_provider == 'openai_compatible' else llm_provider }}/{{ llm_model }}",
-          "fallbacks": [
-{% if llm_provider == 'minimax' %}
-            "minimax/MiniMax-M2.1"
-{% endif %}
-          ]
-        }
-      },
-      {
-        "id": "pincermove",
-        "name": "ThePincerMove",
-        "workspace": "{{ openclaw_home }}/workspace-pincermove",
-        "model": {
-          "primary": "minimax/MiniMax-M2.7",
-          "fallbacks": ["minimax/MiniMax-M2.1"]
-        },
-        "tools": {
-          "deny": ["write", "edit", "browser", "process"]
+          "fallbacks": []
         }
       }
-{% if rp_telegram_bottoken | default('') | length > 0 %},
-      {
-        "id": "sirshellspeare",
-        "name": "SirShellspeare",
-        "workspace": "{{ openclaw_home }}/workspace-rp",
-        "model": {
-          "primary": "minimax/{{ llm_model }}",
-          "fallbacks": []
-        },
-        "tools": {
-          "deny": ["browser", "process"]
-        }
-      }{% endif %}
     ]
   },
   "tools": {

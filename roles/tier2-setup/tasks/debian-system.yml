@@ -27,9 +27,6 @@
   apt:
     name:
       - git
-      - vim
-      - ufw
-      - fail2ban
       - unattended-upgrades
       - openssh-server
       - sudo
@@ -37,7 +34,6 @@
       - gnupg
       - jq
       - lsb-release
-      - python3-pip
     state: present
 
 - name: Enable automatic security updates

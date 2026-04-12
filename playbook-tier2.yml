@@ -125,8 +125,10 @@
     llm_key: "{{ llm_key | default('ollama', true) }}"
 
     # Optional integrations
+    telegram_userid: "{{ telegram_userid | default('', true) }}"
+    telegram_bottoken: "{{ telegram_bottoken | default('', true) }}"
     brave_key: "{{ brave_key | default('', true) }}"
-    scripts_repo_slug: "{{ scripts_repo_slug | default('', true) }}"
+    gemini_key: "{{ gemini_key | default('', true) }}"
 
   roles:
     - tier2-setup
@@ -156,5 +158,7 @@
           - "🔗 SSH (Tailscale):      ssh -i ssh-keys/{{ target_hostname }}.pem {{ openclaw_user }}@{{ tailscale_ip.stdout | default(inventory_hostname) }}"
           - "🤖 LLM:                  {{ llm_provider }} / {{ llm_model }}"
           - "🔐 Gateway token:        {{ hostvars[groups['all'][0]]['gateway_token'] }}"
+          - "📨 Telegram:             {{ 'configured' if telegram_bottoken | length > 0 else 'not configured' }}"
+          - "🔎 Brave Search:         {{ 'configured' if brave_key | length > 0 else 'not configured' }}"
+          - "🧠 Gemini embeddings:    {{ 'configured' if gemini_key | length > 0 else 'not configured' }}"
           - "⚠️  Password auth DISABLED. Keep ssh-keys/{{ target_hostname }}.pem safe."
-          - "📜 Scripts repo:         ~/scripts/ (daily pull from {{ scripts_repo_slug | default('not configured') }})"

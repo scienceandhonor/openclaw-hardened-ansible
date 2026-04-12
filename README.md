@@ -1,143 +1,63 @@
-# OpenClaw Hardened Deployment (Ansible)
+# OpenClaw Ansible Deployments
 
-**Automated Tier 3+ Security Hardening for OpenClaw AI Agents**
+This repository contains two deployment paths:
 
-This Ansible playbook implements and extends the security hardening measures described in the [OpenClaw Security Guide](https://nextkicklabs.substack.com/p/openclaw-hardened-deployment-security-with-ansible), providing a fully automated deployment with additional defense-in-depth layers.
+- **Tier 2:** minimal direct-host bootstrap for a new OpenClaw VPS
+- **Tier 3:** full containerized hardened stack with Podman, LiteLLM, and Squid
 
-## 🎯 What This Playbook Does
+## Tier 2 Minimal Bootstrap
 
-Deploys a **hardened OpenClaw installation** with:
-- **Rootless Podman containers:** Strict isolation running as a non-privileged user.
-- **Network egress filtering:** Squid proxy sidecar with a domain allowlist.
-- **HTTPS termination:** Caddy reverse proxy with auto-generated self-signed certificates.
-- **LiteLLM credential brokering:** OpenClaw never sees real API keys; LiteLLM spoofs models (e.g., Deepseek acting as Claude).
-- **Consolidated Configuration:** Single `openclaw.json` master config for Gateway, Tools, and Agents.
-- **Automated Identity:** EFF wordlist hostname generation and persistent SSH key management.
-- **Multi-OS support:** Native tasks for **Arch Linux** and **Debian/Ubuntu** (AWS ready).
-- **Security Monitoring:** Systemd-based weekly audits for prompt injections and blocked domains.
+Tier 2 provisions a new Debian/Ubuntu VPS with:
 
-## 📊 Comparison: Article vs. This Implementation
+- a dedicated `openclaw` user
+- SSH key access
+- Tailscale and Tailscale Serve
+- Node.js 22
+- OpenClaw running as a **systemd system service**
+- a loopback-bound gateway
+- initial config for one main agent
+- optional Telegram, Brave Search, and Gemini embeddings
 
-| Feature | Original Article (Tier 3) | This Ansible Implementation |
-|---------|---------------------------|------------------------------|
-| **Container Runtime** | Docker | **Podman (rootless)** ⭐ |
-| **Network Filtering** | Firewall only | **Firewall + Squid egress allowlist** ⭐ |
-| **HTTPS** | Optional/Manual | **Caddy reverse proxy (Terminated HTTPS)** ⭐ |
-| **Identity Management** | Manual setup | **Automated EFF wordlist generation** |
-| **OS Support** | Ubuntu focus | **Arch + Debian/Ubuntu auto-detection** |
-| **Deployment Method** | Manual | **Fully automated interactive script** |
-| **Monitoring** | Manual cron | **Systemd timers + audit script** |
-| **LLM Providers** | Anthropic focus | **Ollama (Deepseek) / Anthropic / OpenAI** |
-| **Secrets Management** | Manual generation | **Auto-gen with PERSISTENCE across runs** ⭐ |
-| **Access Control** | Token only | **Token + Manual Device Pairing** |
+Tier 2 does **not** manage ongoing OpenClaw behavior after bootstrap. Agents, cron jobs, skills, and application-level feature changes are expected to be managed on the instance itself.
 
-## 📋 Prerequisites
+### Examples
 
-**Local Machine (Controller):**
-- Ansible 2.10+
-- OpenSSL (for cert generation)
-- SSH Client (`ssh-keygen`)
-- Python 3.8+
-
-**Target Machine:**
-- Arch Linux OR Debian/Ubuntu
-- Initial root/sudo access (Password or AWS .pem key)
-- 2GB+ RAM
-
-## 🚀 Quick Start
-
-### 1. Prepare
 ```bash
-cd openclaw-hardened-ansible
-chmod +x deploy.sh update-allowlist.sh
+# Interactive deploy
+./deploy-tier2.sh
+
+# Anthropic
+./deploy-tier2.sh -t <IP> -p anthropic -m claude-sonnet-4-5 -k <API_KEY>
+
+# Ollama
+./deploy-tier2.sh -t <IP> -p ollama -m llama3 -u http://localhost:11434
+
+# OpenAI-compatible
+./deploy-tier2.sh -t <IP> -p openai_compatible -m <MODEL> -u <BASE_URL> -k <API_KEY>
+
+# Telegram + Brave + Gemini
+./deploy-tier2.sh -t <IP> -p anthropic -m claude-sonnet-4-5 -k <API_KEY> \
+  --telegram-userid <INTEGER_USER_ID> \
+  --telegram-bottoken <BOT_TOKEN> \
+  --brave-key <BRAVE_API_KEY> \
+  --gemini-key <GEMINI_API_KEY>
 ```
 
-### 2. Deploy
-Run the interactive script. It will prompt for your IP, provider, and keys.
+## Tier 3 Hardened Stack
+
+Tier 3 remains the full containerized deployment:
+
+- rootless Podman
+- LiteLLM credential brokering
+- Squid egress filtering
+- more opinionated hardening and network isolation
+
+Use `./deploy.sh` for that path.
+
+## Maintenance
+
 ```bash
-./deploy.sh
+ansible-galaxy collection install -r requirements.yml
+ansible-playbook playbook-tier2.yml --syntax-check
+ansible-playbook playbook.yml --syntax-check
 ```
-
-**AWS/Cloud Example:**
-```bash
-./deploy.sh \
-  --target 54.x.x.x \
-  --ssh-user ubuntu \
-  --ssh-key ~/my-aws-key.pem \
-  --mgmt-cidr 192.168.20.0/24 \
-  --provider ollama \
-  --model "deepseek-r1:8b" \
-  --url "http://10.100.1.25:11434"
-```
-
-### 3. Authenticate
-Once finished, get your persistent token:
-```bash
-ssh -i ssh-keys/your-name.pem openclaw@IP "cat ~/openclaw-docker/.env | grep TOKEN"
-```
-Open **`https://IP:18789`**, click through the SSL warning, and paste the token in Settings.
-
-### 4. Approve Device (Hardening Step 7)
-Since device auth is enabled, you must approve your browser from the host CLI:
-```bash
-# Inside the OpenClaw host
-podman exec openclaw-agent openclaw devices pending
-podman exec openclaw-agent openclaw devices approve <YOUR_ID>
-```
-
-## 🔧 Maintenance
-
-### Update Egress Allowlist
-1. Edit `roles/tier3-setup/templates/allowlist.txt.j2`.
-2. Run `./update-allowlist.sh -t IP --ssh-user USER --ask-pass`.
-
-### Security Audits
-A systemd timer runs `monitor-openclaw.sh` weekly. To run manually:
-```bash
-sudo /home/openclaw/openclaw-docker/monitor-openclaw.sh
-```
-Check the reports at `~/openclaw-docker/security-audit-YYYYMMDD.log`.
-
-### Configuration Validation
-If you see errors, run the OpenClaw "Doctor" to check the schema:
-```bash
-podman exec openclaw-agent openclaw doctor
-```
-
-## 📁 File Structure
-- `deploy.sh`: Main entry point (interactive/CLI).
-- `update-allowlist.sh`: Lightweight allowlist updater.
-- `ssh-keys/`: Stores generated `.pem` and `.crt` files.
-- `roles/tier3-setup/`: The core hardening logic.
-- `requirements.yml`: Ansible dependencies (auto-installed).
-
-## Troubleshooting: Pairing Required
-
-If you see "disconnected (1008): pairing required" when accessing the dashboard:
-
-1. Get your gateway token (shown in deployment summary, or retrieve via):
-   ```bash
-   podman exec -it openclaw-agent printenv OPENCLAW_GATEWAY_TOKEN
-   ```
-
-2. List pending devices:
-   ```bash
-   podman exec -it openclaw-agent \
-     openclaw devices list \
-     --url ws://127.0.0.1:18789 \
-     --token "$GATEWAY_TOKEN" \
-     --json
-   ```
-
-3. Approve your device (copy `requestId` from output):
-   ```bash
-   podman exec -it openclaw-agent \
-     openclaw devices approve <requestId> \
-     --url ws://127.0.0.1:18789 \
-     --token "$GATEWAY_TOKEN"
-   ```
-
-4. Reload the dashboard.
-
-## 📄 License
-Provided as-is for harm-reduction. OpenClaw is architecturally "spicy"—this deployment reduces the blast radius but prompt injection remains an inherent risk of LLMs. Use burner accounts only.
