@@ -76,7 +76,7 @@
     - "{{ openclaw_home }}/.local/npm/lib"
 
 - name: Install OpenClaw into the openclaw user npm prefix
-  command: npm install -g openclaw@2026.4.10
+  command: npm install -g openclaw
   register: npm_install_result
   changed_when: "'added' in npm_install_result.stdout or 'updated' in npm_install_result.stdout"
   become: true
