@@ -205,7 +205,7 @@
       "allowFrom": [ {{ telegram_userid }} ],
       "groupPolicy": "allowlist",
       "dms": { "{{ telegram_userid }}": {} },
-      "streamMode": "partial",
+      "streaming": "partial",
       "actions": { "reactions": true, "sendMessage": true },
       "heartbeat": { "showOk": true, "showAlerts": true, "useIndicator": true },
       "accounts": {
@@ -246,7 +246,7 @@
 {% endif %}
       "heartbeat": { "every": "5m" },
       "contextTokens": 80000,
-      "timeoutSeconds": 120,
+      "timeoutSeconds": 240,
       "compaction": {
         "mode": "safeguard",
         "reserveTokensFloor": 24000,
@@ -288,7 +288,7 @@
           "fallbacks": ["minimax/MiniMax-M2.1"]
         },
         "tools": {
-          "deny": ["write", "edit", "apply_patch", "browser", "process"]
+          "deny": ["write", "edit", "browser", "process"]
         }
       }
 {% if rp_telegram_bottoken | default('') | length > 0 %},
@@ -324,11 +324,21 @@
     }{% if brave_key | default('') | length > 0 %},
     "web": {
       "search": {
-        "provider": "brave",
-        "apiKey": "{{ brave_key }}"
+        "provider": "brave"
       },
       "fetch": {
         "enabled": true
+      }
+    },
+    "plugins": {
+      "entries": {
+        "brave": {
+          "config": {
+            "webSearch": {
+              "apiKey": "{{ brave_key }}"
+            }
+          }
+        }
       }
     }
 {% endif %}
