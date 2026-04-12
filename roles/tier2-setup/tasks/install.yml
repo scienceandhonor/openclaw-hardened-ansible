@@ -543,7 +543,6 @@
     if enable:
         store['jobs'].append({
             'id':            job_id,
-            'jobId':         job_id,
             'name':          'Last.fm artist sync',
             'enabled':       True,
             'schedule':      {'kind': 'cron', 'expr': '0 */3 * * *', 'staggerMs': 0},
@@ -614,7 +613,6 @@
         tg_on = os.environ.get('TELEGRAM_ENABLED') == '1'
         store['jobs'].append({
             'id':            job_id,
-            'jobId':         job_id,
             'name':          'Band NSBM check',
             'enabled':       True,
             'schedule':      {'kind': 'cron', 'expr': '0 7 * * *', 'staggerMs': 0},
@@ -712,7 +710,6 @@
         ]:
             store['jobs'].append({
                 'id':            job_id,
-                'jobId':         job_id,
                 'name':          name,
                 'enabled':       True,
                 'schedule':      {'kind': 'cron', 'expr': expr, 'staggerMs': 0},
@@ -773,7 +770,6 @@
     if enable:
         store['jobs'].append({
             'id':            job_id,
-            'jobId':         job_id,
             'name':          'Daily stoic quote',
             'enabled':       True,
             'schedule':      {'kind': 'cron', 'expr': '0 6 * * *', 'staggerMs': 0},
@@ -838,7 +834,6 @@
     if tg_on:
         store['jobs'].append({
             'id':            job_id,
-            'jobId':         job_id,
             'name':          'MiniMax weekly summary reminder',
             'enabled':       True,
             'schedule':      {'kind': 'cron', 'expr': '0 17 * * 5', 'staggerMs': 0},
@@ -970,7 +965,6 @@
         ]:
             store['jobs'].append({
                 'id':            job_id,
-                'jobId':         job_id,
                 'name':          name,
                 'enabled':       True,
                 'schedule':      {'kind': 'cron', 'expr': expr, 'staggerMs': 0},
@@ -1060,7 +1054,6 @@
         ]:
             store['jobs'].append({
                 'id':            job_id,
-                'jobId':         job_id,
                 'name':          name,
                 'enabled':       True,
                 'schedule':      {'kind': 'cron', 'expr': expr, 'staggerMs': 0},
@@ -1125,7 +1118,6 @@
     if tg_on:
         store['jobs'].append({
             'id':            job_id,
-            'jobId':         job_id,
             'name':          'OpenClaw update check',
             'enabled':       True,
             'schedule':      {'kind': 'cron', 'expr': '30 19 * * *', 'staggerMs': 0},
@@ -1202,7 +1194,6 @@
     if tg_on:
         store['jobs'].append({
             'id':            job_id,
-            'jobId':         job_id,
             'name':          'OpenClaw Friday feature tips',
             'enabled':       True,
             'schedule':      {'kind': 'cron', 'expr': '0 18 * * 5', 'staggerMs': 0},
@@ -1261,7 +1252,6 @@
     if tg_on:
         store['jobs'].append({
             'id':            job_id,
-            'jobId':         job_id,
             'name':          'OpenClaw Monday feature tip reminder',
             'enabled':       True,
             'schedule':      {'kind': 'cron', 'expr': '0 16 * * 1', 'staggerMs': 0},
@@ -1493,7 +1483,6 @@
         home = os.environ['HOME']
         store['jobs'].append({
             'id':            job_id,
-            'jobId':         job_id,
             'name':          'Obsidian link summarize',
             'enabled':       True,
             'schedule':      {'kind': 'cron', 'expr': '15 * * * *', 'staggerMs': 0},
