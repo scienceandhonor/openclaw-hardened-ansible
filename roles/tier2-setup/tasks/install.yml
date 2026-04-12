@@ -62,15 +62,42 @@
     msg: "Node.js {{ node_version.stdout }} is too old for OpenClaw."
   when: (node_version.stdout | regex_replace('^v', '') | split('.') | first | int) < 22
 
-- name: Install OpenClaw globally
+- name: Create OpenClaw npm prefix directories
+  file:
+    path: "{{ item }}"
+    state: directory
+    owner: "{{ openclaw_user }}"
+    group: "{{ openclaw_user }}"
+    mode: "0755"
+  loop:
+    - "{{ openclaw_home }}/.local"
+    - "{{ openclaw_home }}/.local/npm"
+    - "{{ openclaw_home }}/.local/npm/bin"
+    - "{{ openclaw_home }}/.local/npm/lib"
+
+- name: Install OpenClaw into the openclaw user npm prefix
   command: npm install -g openclaw@2026.4.10
   register: npm_install_result
   changed_when: "'added' in npm_install_result.stdout or 'updated' in npm_install_result.stdout"
+  become: true
+  become_user: "{{ openclaw_user }}"
+  environment:
+    HOME: "{{ openclaw_home }}"
+    NPM_CONFIG_PREFIX: "{{ openclaw_home }}/.local/npm"
 
-- name: Find openclaw binary path
-  command: which openclaw
-  register: openclaw_bin
-  changed_when: false
+- name: Set openclaw binary path
+  set_fact:
+    openclaw_bin: "{{ openclaw_home }}/.local/npm/bin/openclaw"
+
+- name: Verify OpenClaw binary path
+  stat:
+    path: "{{ openclaw_bin }}"
+  register: openclaw_bin_stat
+
+- name: Fail if OpenClaw binary is missing
+  fail:
+    msg: "Expected OpenClaw binary at {{ openclaw_bin }} after npm install."
+  when: not openclaw_bin_stat.stat.exists
 
 - name: Create openclaw directories
   file:
@@ -222,13 +249,15 @@
       Environment=NODE_COMPILE_CACHE=/var/tmp/openclaw-compile-cache
       Environment=OPENCLAW_NO_RESPAWN=1
       Environment=CODEX_HOME={{ openclaw_home }}/.codex
+      Environment=PATH={{ openclaw_home }}/.local/npm/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin
+      Environment=NPM_CONFIG_PREFIX={{ openclaw_home }}/.local/npm
       {% if gemini_key | default('') | length > 0 %}
       Environment=GEMINI_API_KEY={{ gemini_key }}
       {% endif %}
       {% if llm_provider == 'minimax' %}
       Environment=MINIMAX_API_KEY={{ llm_key }}
       {% endif %}
-      ExecStart={{ openclaw_bin.stdout }} gateway run
+      ExecStart={{ openclaw_bin }} gateway run
       Restart=on-failure
       RestartSec=15
       StartLimitIntervalSec=120
@@ -248,12 +277,13 @@
     state: started
 
 - name: Run openclaw doctor fix
-  command: "{{ openclaw_bin.stdout }} doctor --fix --yes --non-interactive"
+  command: "{{ openclaw_bin }} doctor --fix --yes --non-interactive"
   become: true
   become_user: "{{ openclaw_user }}"
   environment:
     HOME: "{{ openclaw_home }}"
     OPENCLAW_GATEWAY_TOKEN: "{{ gateway_token }}"
+    NPM_CONFIG_PREFIX: "{{ openclaw_home }}/.local/npm"
   register: doctor_result
   ignore_errors: true
   changed_when: false
@@ -317,6 +347,36 @@
 - name: Show Tailscale Serve status
   debug:
     msg: "{{ tailscale_serve_result.stdout_lines | default([]) + tailscale_serve_result.stderr_lines | default([]) }}"
+
+- name: Set OpenClaw npm environment in openclaw user .profile
+  blockinfile:
+    path: "{{ openclaw_home }}/.profile"
+    create: true
+    owner: "{{ openclaw_user }}"
+    group: "{{ openclaw_user }}"
+    mode: "0600"
+    marker: "# {mark} ANSIBLE MANAGED OPENCLAW NPM ENV"
+    block: |
+      export NPM_CONFIG_PREFIX="{{ openclaw_home }}/.local/npm"
+      case ":$PATH:" in
+        *:"{{ openclaw_home }}/.local/npm/bin":*) ;;
+        *) export PATH="{{ openclaw_home }}/.local/npm/bin:$PATH" ;;
+      esac
+
+- name: Set OpenClaw npm environment in openclaw user .bashrc
+  blockinfile:
+    path: "{{ openclaw_home }}/.bashrc"
+    create: true
+    owner: "{{ openclaw_user }}"
+    group: "{{ openclaw_user }}"
+    mode: "0600"
+    marker: "# {mark} ANSIBLE MANAGED OPENCLAW NPM ENV"
+    block: |
+      export NPM_CONFIG_PREFIX="{{ openclaw_home }}/.local/npm"
+      case ":$PATH:" in
+        *:"{{ openclaw_home }}/.local/npm/bin":*) ;;
+        *) export PATH="{{ openclaw_home }}/.local/npm/bin:$PATH" ;;
+      esac
 
 - name: Set OPENCLAW_GATEWAY_TOKEN in openclaw user .bashrc
   lineinfile:
