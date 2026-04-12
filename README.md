@@ -16,6 +16,7 @@ Tier 2 provisions a new Debian/Ubuntu VPS with:
 - OpenClaw running as a **systemd system service**
 - a loopback-bound gateway
 - initial config for one main agent
+- optional OpenAI Codex OAuth bootstrap via `~/.codex/auth.json`
 - optional Telegram, Brave Search, and Gemini embeddings
 - optional seed copy of a local legacy scripts directory into `~/workspace/legacy-scripts`
 
@@ -35,6 +36,9 @@ Tier 2 does **not** manage ongoing OpenClaw behavior after bootstrap. Agents, cr
 
 # OpenAI-compatible
 ./deploy-tier2.sh -t <IP> -p openai_compatible -m <MODEL> -u <BASE_URL> -k <API_KEY>
+
+# OpenAI Codex OAuth (auto-reuses local ~/.codex/auth.json if present)
+./deploy-tier2.sh -t <IP> -p openai-codex -m gpt-5.4
 
 # Telegram + Brave + Gemini
 ./deploy-tier2.sh -t <IP> -p anthropic -m claude-sonnet-4-5 -k <API_KEY> \

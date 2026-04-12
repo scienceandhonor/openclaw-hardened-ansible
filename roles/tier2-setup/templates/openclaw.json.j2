@@ -34,7 +34,7 @@
     "redactSensitive": "tools"
   },
   "models": {
-    "mode": "merge",
+    "mode": "merge"{% if llm_provider != 'openai-codex' %},
     "providers": {
 {% if llm_provider == 'anthropic' %}
       "anthropic": {
@@ -106,6 +106,7 @@
       }
 {% endif %}
     }
+{% endif %}
   },
   "channels": {
 {% if telegram_bottoken | default('') | length > 0 and telegram_userid | default('') | length > 0 %}

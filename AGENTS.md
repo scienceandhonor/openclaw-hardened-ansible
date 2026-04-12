@@ -22,6 +22,7 @@ Tier 2 should only provision:
 - Tailscale Serve exposure
 - Initial provider/model config for the main agent
 - Optional Telegram, Brave Search, and Gemini embedding config
+- Optional OpenAI Codex OAuth bootstrap by seeding `~/.codex/auth.json`
 - Optional seed copy of local legacy scripts into `~/workspace/legacy-scripts`
 
 Tier 2 should not manage:

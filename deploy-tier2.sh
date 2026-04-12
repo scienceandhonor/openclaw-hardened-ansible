@@ -6,7 +6,7 @@ show_help() {
     echo ""
     echo "Options:"
     echo "  -t, --target IP       Target IP address"
-    echo "  -p, --provider NAME   LLM provider (ollama, anthropic, openai, minimax, openai_compatible)"
+    echo "  -p, --provider NAME   LLM provider (ollama, anthropic, openai, openai-codex, minimax, openai_compatible)"
     echo "  -m, --model NAME      Model name (e.g. llama3, claude-sonnet-4-5)"
     echo "  -u, --url URL         API base URL (required for ollama and openai_compatible)"
     echo "  -k, --key KEY         API key"
@@ -20,6 +20,8 @@ show_help() {
     echo "  --gemini-key KEY      Gemini API key for memory embeddings"
     echo "  --legacy-scripts-dir PATH"
     echo "                       Local directory to copy to ~/workspace/legacy-scripts"
+    echo "  --codex-auth-file PATH"
+    echo "                       Local Codex auth.json to seed to ~/.codex/auth.json on the VPS"
     echo "  -h, --help            Show this help message"
     echo ""
     echo "Deploys a minimal OpenClaw Tier 2 bootstrap to an Ubuntu/Debian VPS."
@@ -40,6 +42,7 @@ TELEGRAM_BOTTOKEN=""
 BRAVE_KEY=""
 GEMINI_KEY=""
 LEGACY_SCRIPTS_DIR=""
+CODEX_AUTH_FILE=""
 
 _ARGS=()
 for _arg in "$@"; do
@@ -67,6 +70,7 @@ while [[ "$#" -gt 0 ]]; do
         --brave-key) BRAVE_KEY="$2"; shift ;;
         --gemini-key) GEMINI_KEY="$2"; shift ;;
         --legacy-scripts-dir) LEGACY_SCRIPTS_DIR="$2"; shift ;;
+        --codex-auth-file) CODEX_AUTH_FILE="$2"; shift ;;
         -h|--help) show_help; exit 0 ;;
         *) echo "Unknown parameter: $1"; exit 1 ;;
     esac
@@ -100,14 +104,16 @@ if [ "$INTERACTIVE" = true ]; then
         echo "  1) Ollama (default)"
         echo "  2) Anthropic"
         echo "  3) OpenAI"
-        echo "  4) MiniMax"
-        echo "  5) OpenAI-compatible"
-        read -p "Choice [1-5]: " provider_choice
+        echo "  4) OpenAI Codex (ChatGPT OAuth)"
+        echo "  5) MiniMax"
+        echo "  6) OpenAI-compatible"
+        read -p "Choice [1-6]: " provider_choice
         case $provider_choice in
             2) LLM_PROVIDER="anthropic" ;;
             3) LLM_PROVIDER="openai" ;;
-            4) LLM_PROVIDER="minimax" ;;
-            5) LLM_PROVIDER="openai_compatible" ;;
+            4) LLM_PROVIDER="openai-codex" ;;
+            5) LLM_PROVIDER="minimax" ;;
+            6) LLM_PROVIDER="openai_compatible" ;;
             *) LLM_PROVIDER="ollama" ;;
         esac
     fi
@@ -118,6 +124,7 @@ if [ "$INTERACTIVE" = true ]; then
         if [ "$LLM_PROVIDER" == "ollama" ]; then default_model="llama3"; fi
         if [ "$LLM_PROVIDER" == "anthropic" ]; then default_model="claude-sonnet-4-5"; fi
         if [ "$LLM_PROVIDER" == "openai" ]; then default_model="gpt-4o"; fi
+        if [ "$LLM_PROVIDER" == "openai-codex" ]; then default_model="gpt-5.4"; fi
         if [ "$LLM_PROVIDER" == "minimax" ]; then default_model="MiniMax-M2.5"; fi
         read -p "Enter model name [$default_model]: " input_model
         LLM_MODEL="${input_model:-$default_model}"
@@ -135,11 +142,11 @@ if [ "$INTERACTIVE" = true ]; then
     fi
 
     if [ -z "$LLM_KEY" ]; then
-        if [ "$LLM_PROVIDER" != "ollama" ]; then
+        if [ "$LLM_PROVIDER" != "ollama" ] && [ "$LLM_PROVIDER" != "openai-codex" ]; then
             echo ""
             read -s -p "Enter API key: " LLM_KEY
             echo ""
-        else
+        elif [ "$LLM_PROVIDER" == "ollama" ]; then
             LLM_KEY="ollama"
         fi
     fi
@@ -175,8 +182,9 @@ fi
 if [ -z "$SSH_USER" ]; then SSH_USER="root"; fi
 if [ -z "$LLM_PROVIDER" ]; then LLM_PROVIDER="ollama"; fi
 if [ -z "$LLM_MODEL" ] && [ "$LLM_PROVIDER" == "ollama" ]; then LLM_MODEL="llama3"; fi
+if [ -z "$LLM_MODEL" ] && [ "$LLM_PROVIDER" == "openai-codex" ]; then LLM_MODEL="gpt-5.4"; fi
 if [ -z "$LLM_URL" ] && [ "$LLM_PROVIDER" == "ollama" ]; then LLM_URL="http://localhost:11434"; fi
-if [ -z "$LLM_KEY" ]; then LLM_KEY="sk-placeholder"; fi
+if [ -z "$LLM_KEY" ] && [ "$LLM_PROVIDER" != "openai-codex" ]; then LLM_KEY="sk-placeholder"; fi
 
 if [ -n "$TELEGRAM_BOTTOKEN" ] && [ -z "$TELEGRAM_USERID" ]; then
     echo "Error: --telegram-userid is required when --telegram-bottoken is set."
@@ -193,6 +201,15 @@ fi
 
 if [ -n "$LEGACY_SCRIPTS_DIR" ] && [ ! -d "$LEGACY_SCRIPTS_DIR" ]; then
     echo "Error: legacy scripts directory does not exist: $LEGACY_SCRIPTS_DIR"
+    exit 1
+fi
+
+if [ -z "$CODEX_AUTH_FILE" ] && [ "$LLM_PROVIDER" = "openai-codex" ] && [ -f "$HOME/.codex/auth.json" ]; then
+    CODEX_AUTH_FILE="$HOME/.codex/auth.json"
+fi
+
+if [ -n "$CODEX_AUTH_FILE" ] && [ ! -f "$CODEX_AUTH_FILE" ]; then
+    echo "Error: Codex auth file does not exist: $CODEX_AUTH_FILE"
     exit 1
 fi
 
@@ -218,6 +235,13 @@ if [ -n "$GEMINI_KEY" ]; then
     echo "Gemini:    enabled (key=***)"
 else
     echo "Gemini:    not configured"
+fi
+if [ "$LLM_PROVIDER" = "openai-codex" ]; then
+    if [ -n "$CODEX_AUTH_FILE" ]; then
+        echo "Codex:     auth file=$CODEX_AUTH_FILE"
+    else
+        echo "Codex:     no local auth file found; manual login required after deploy"
+    fi
 fi
 if [ -n "$LEGACY_SCRIPTS_DIR" ]; then
     echo "Legacy:    $LEGACY_SCRIPTS_DIR -> ~/workspace/legacy-scripts"
@@ -269,7 +293,8 @@ print(json.dumps({
     'brave_key':         sys.argv[7],
     'gemini_key':        sys.argv[8],
     'legacy_scripts_dir': sys.argv[9],
-}))" "$LLM_PROVIDER" "$LLM_MODEL" "$LLM_URL" "$LLM_KEY" "$TELEGRAM_USERID" "$TELEGRAM_BOTTOKEN" "$BRAVE_KEY" "$GEMINI_KEY" "$LEGACY_SCRIPTS_DIR")
+    'codex_auth_file':   sys.argv[10],
+}))" "$LLM_PROVIDER" "$LLM_MODEL" "$LLM_URL" "$LLM_KEY" "$TELEGRAM_USERID" "$TELEGRAM_BOTTOKEN" "$BRAVE_KEY" "$GEMINI_KEY" "$LEGACY_SCRIPTS_DIR" "$CODEX_AUTH_FILE")
 
 ansible-playbook -i "$TEMP_INVENTORY" playbook-tier2.yml $ANSIBLE_ARGS \
     --extra-vars "$EXTRA_VARS"

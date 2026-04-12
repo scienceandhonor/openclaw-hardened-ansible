@@ -62,6 +62,27 @@
     state: absent
   when: legacy_scripts_dir | default('') | length > 0
 
+- name: Create Codex auth directory
+  file:
+    path: "{{ openclaw_home }}/.codex"
+    state: directory
+    owner: "{{ openclaw_user }}"
+    group: "{{ openclaw_user }}"
+    mode: "0700"
+  when: llm_provider == 'openai-codex'
+
+- name: Seed Codex auth.json from local controller
+  copy:
+    src: "{{ codex_auth_file }}"
+    dest: "{{ openclaw_home }}/.codex/auth.json"
+    owner: "{{ openclaw_user }}"
+    group: "{{ openclaw_user }}"
+    mode: "0600"
+  no_log: true
+  when:
+    - llm_provider == 'openai-codex'
+    - codex_auth_file | default('') | length > 0
+
 - name: Check if gateway token already exists
   stat:
     path: "{{ openclaw_home }}/.openclaw/gateway.token"
@@ -141,6 +162,7 @@
       Environment=NODE_OPTIONS=--no-network-family-autoselection
       Environment=NODE_COMPILE_CACHE=/var/tmp/openclaw-compile-cache
       Environment=OPENCLAW_NO_RESPAWN=1
+      Environment=CODEX_HOME={{ openclaw_home }}/.codex
       {% if gemini_key | default('') | length > 0 %}
       Environment=GEMINI_API_KEY={{ gemini_key }}
       {% endif %}
