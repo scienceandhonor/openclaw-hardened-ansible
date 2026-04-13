@@ -12,6 +12,7 @@ show_help() {
     echo "  -k, --key KEY         API key"
     echo "  --ssh-user USER       Initial SSH user (default: root)"
     echo "  --ssh-key PATH        Path to private key for SSH connection"
+    echo "  --openclaw-password P Password to set for the openclaw user (required)"
     echo "  --ask-pass            Ask for SSH and sudo passwords"
     echo "  --non-interactive     Fail if missing arguments instead of prompting"
     echo "  --telegram-userid ID  Telegram user ID (integer) to allow"
@@ -38,6 +39,7 @@ LLM_KEY=""
 INTERACTIVE=true
 ASK_PASS=false
 SSH_KEY=""
+OPENCLAW_PASSWORD=""
 TELEGRAM_USERID=""
 TELEGRAM_BOTTOKEN=""
 BRAVE_KEY=""
@@ -66,6 +68,7 @@ while [[ "$#" -gt 0 ]]; do
         -k|--key) LLM_KEY="$2"; shift ;;
         --ssh-user) SSH_USER="$2"; shift ;;
         --ssh-key) SSH_KEY="$2"; shift ;;
+        --openclaw-password) OPENCLAW_PASSWORD="$2"; shift ;;
         --ask-pass) ASK_PASS=true ;;
         --non-interactive) INTERACTIVE=false ;;
         --telegram-userid) TELEGRAM_USERID="$2"; shift ;;
@@ -100,6 +103,12 @@ if [ "$INTERACTIVE" = true ]; then
         echo ""
         read -p "SSH private key path (leave empty for default/ssh-agent): " input_key
         SSH_KEY="${input_key}"
+    fi
+
+    if [ -z "$OPENCLAW_PASSWORD" ]; then
+        echo ""
+        read -s -p "Enter password for openclaw user: " OPENCLAW_PASSWORD
+        echo ""
     fi
 
     if [ -z "$LLM_PROVIDER" ]; then
@@ -183,6 +192,11 @@ if [ -z "$TARGET_IP" ]; then
     exit 1
 fi
 
+if [ -z "$OPENCLAW_PASSWORD" ]; then
+    echo "Error: --openclaw-password is required."
+    exit 1
+fi
+
 if [ -z "$SSH_USER" ]; then SSH_USER="root"; fi
 if [ -z "$LLM_PROVIDER" ]; then LLM_PROVIDER="ollama"; fi
 if [ -z "$LLM_MODEL" ] && [ "$LLM_PROVIDER" == "ollama" ]; then LLM_MODEL="llama3"; fi
@@ -245,6 +259,7 @@ echo "----------------------------------------"
 echo "Target:    $TARGET_IP"
 echo "User:      $SSH_USER"
 if [ -n "$SSH_KEY" ]; then echo "SSH Key:   $SSH_KEY"; fi
+echo "Password:  openclaw=***"
 echo "OS:        Ubuntu/Debian (auto-detect)"
 echo "Provider:  $LLM_PROVIDER / $LLM_MODEL"
 if [ -n "$TELEGRAM_USERID" ]; then
@@ -310,19 +325,20 @@ fi
 EXTRA_VARS=$(python3 -c "
 import json, sys
 print(json.dumps({
-    'llm_provider':      sys.argv[1],
-    'llm_model':         sys.argv[2],
-    'llm_url':           sys.argv[3],
-    'llm_key':           sys.argv[4],
-    'telegram_userid':   sys.argv[5],
-    'telegram_bottoken': sys.argv[6],
-    'brave_key':         sys.argv[7],
-    'gemini_key':        sys.argv[8],
-    'legacy_scripts_enabled': sys.argv[9] == 'true',
-    'legacy_scripts_dir': sys.argv[10],
-    'legacy_scripts_files': json.loads(sys.argv[11]),
-    'codex_auth_file':   sys.argv[12],
-}))" "$LLM_PROVIDER" "$LLM_MODEL" "$LLM_URL" "$LLM_KEY" "$TELEGRAM_USERID" "$TELEGRAM_BOTTOKEN" "$BRAVE_KEY" "$GEMINI_KEY" "$SEED_LEGACY_SCRIPTS" "$LEGACY_SCRIPTS_DIR" "$LEGACY_SCRIPTS_FILES_JSON" "$CODEX_AUTH_FILE")
+    'openclaw_password': sys.argv[1],
+    'llm_provider':      sys.argv[2],
+    'llm_model':         sys.argv[3],
+    'llm_url':           sys.argv[4],
+    'llm_key':           sys.argv[5],
+    'telegram_userid':   sys.argv[6],
+    'telegram_bottoken': sys.argv[7],
+    'brave_key':         sys.argv[8],
+    'gemini_key':        sys.argv[9],
+    'legacy_scripts_enabled': sys.argv[10] == 'true',
+    'legacy_scripts_dir': sys.argv[11],
+    'legacy_scripts_files': json.loads(sys.argv[12]),
+    'codex_auth_file':   sys.argv[13],
+}))" "$OPENCLAW_PASSWORD" "$LLM_PROVIDER" "$LLM_MODEL" "$LLM_URL" "$LLM_KEY" "$TELEGRAM_USERID" "$TELEGRAM_BOTTOKEN" "$BRAVE_KEY" "$GEMINI_KEY" "$SEED_LEGACY_SCRIPTS" "$LEGACY_SCRIPTS_DIR" "$LEGACY_SCRIPTS_FILES_JSON" "$CODEX_AUTH_FILE")
 
 ansible-playbook -i "$TEMP_INVENTORY" playbook-tier2.yml $ANSIBLE_ARGS \
     --extra-vars "$EXTRA_VARS"

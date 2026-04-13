@@ -10,6 +10,7 @@ This repository contains two deployment paths:
 Tier 2 provisions a new Debian/Ubuntu VPS with:
 
 - a dedicated `openclaw` user
+- a required password set for that `openclaw` user
 - SSH key access
 - Tailscale and Tailscale Serve
 - Node.js 22
@@ -30,26 +31,26 @@ Tier 2 does **not** manage ongoing OpenClaw behavior after bootstrap. Agents, cr
 ./deploy-tier2.sh
 
 # Anthropic
-./deploy-tier2.sh -t <IP> -p anthropic -m claude-sonnet-4-5 -k <API_KEY>
+./deploy-tier2.sh -t <IP> --openclaw-password <PASSWORD> -p anthropic -m claude-sonnet-4-5 -k <API_KEY>
 
 # Ollama
-./deploy-tier2.sh -t <IP> -p ollama -m llama3 -u http://localhost:11434
+./deploy-tier2.sh -t <IP> --openclaw-password <PASSWORD> -p ollama -m llama3 -u http://localhost:11434
 
 # OpenAI-compatible
-./deploy-tier2.sh -t <IP> -p openai_compatible -m <MODEL> -u <BASE_URL> -k <API_KEY>
+./deploy-tier2.sh -t <IP> --openclaw-password <PASSWORD> -p openai_compatible -m <MODEL> -u <BASE_URL> -k <API_KEY>
 
 # OpenAI Codex OAuth (auto-reuses local ~/.codex/auth.json if present)
-./deploy-tier2.sh -t <IP> -p openai-codex -m gpt-5.4
+./deploy-tier2.sh -t <IP> --openclaw-password <PASSWORD> -p openai-codex -m gpt-5.4
 
 # Telegram + Brave + Gemini
-./deploy-tier2.sh -t <IP> -p anthropic -m claude-sonnet-4-5 -k <API_KEY> \
+./deploy-tier2.sh -t <IP> --openclaw-password <PASSWORD> -p anthropic -m claude-sonnet-4-5 -k <API_KEY> \
   --telegram-userid <INTEGER_USER_ID> \
   --telegram-bottoken <BOT_TOKEN> \
   --brave-key <BRAVE_API_KEY> \
   --gemini-key <GEMINI_API_KEY>
 
 # Seed a local legacy scripts snapshot for in-instance migration work
-./deploy-tier2.sh -t <IP> -p anthropic -m claude-sonnet-4-5 -k <API_KEY> \
+./deploy-tier2.sh -t <IP> --openclaw-password <PASSWORD> -p anthropic -m claude-sonnet-4-5 -k <API_KEY> \
   --seed-legacy-scripts \
   --legacy-scripts-dir ../clamps-tools
 ```

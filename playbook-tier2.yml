@@ -117,6 +117,7 @@
     # Pass generated variables from local play
     target_hostname: "{{ hostvars['localhost']['generated_hostname'] }}"
     deploy_public_key: "{{ hostvars['localhost']['openclaw_public_key'] }}"
+    openclaw_password: "{{ openclaw_password | default('', true) }}"
 
     # LLM Configuration (passed from deploy-tier2.sh or --extra-vars)
     llm_provider: "{{ llm_provider | default('ollama', true) }}"
@@ -138,6 +139,13 @@
     - tier2-setup
 
   tasks:
+    - name: Validate required tier 2 bootstrap inputs
+      assert:
+        that:
+          - openclaw_password | length > 0
+        fail_msg: "openclaw_password is required. Pass it from deploy-tier2.sh or --extra-vars."
+      no_log: true
+
     - name: Persist Agent Identity
       copy:
         content: "{{ target_hostname }}"

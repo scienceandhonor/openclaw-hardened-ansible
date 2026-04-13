@@ -85,7 +85,11 @@
     shell: /bin/bash
     create_home: true
     home: "{{ openclaw_home }}"
+    password: "{{ openclaw_password | password_hash('sha512') }}"
+    groups: sudo
+    append: true
     state: present
+  no_log: true
 
 - name: Authorize SSH Key for OpenClaw User
   authorized_key:
