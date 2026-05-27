@@ -26,14 +26,29 @@
 - name: Install Essential Tools
   apt:
     name:
+      - build-essential
+      - ca-certificates
       - git
       - unattended-upgrades
       - openssh-server
       - sudo
       - curl
+      - file
       - gnupg
       - jq
       - lsb-release
+      - procps
+      - sqlite3
+      - libsqlite3-dev
+      - netcat-openbsd
+      - tar
+      - gzip
+      - wget
+      - nano
+      - python3-venv
+      - libffi-dev
+      - libssl-dev
+      - pipx
     state: present
 
 - name: Enable automatic security updates
@@ -52,50 +67,66 @@
     curl -fsSL https://pkgs.tailscale.com/stable/ubuntu/$(lsb_release -cs).noarmor.gpg | tee /usr/share/keyrings/tailscale-archive-keyring.gpg >/dev/null
   args:
     creates: /usr/share/keyrings/tailscale-archive-keyring.gpg
-  when: ansible_facts['distribution'] == 'Ubuntu'
+  when: ansible_facts['distribution'] == 'Ubuntu' and install_tailscale | default(true)
 
 - name: Add Tailscale Repository (Ubuntu)
   shell: |
     curl -fsSL https://pkgs.tailscale.com/stable/ubuntu/$(lsb_release -cs).tailscale-keyring.list | tee /etc/apt/sources.list.d/tailscale.list
   args:
     creates: /etc/apt/sources.list.d/tailscale.list
-  when: ansible_facts['distribution'] == 'Ubuntu'
+  when: ansible_facts['distribution'] == 'Ubuntu' and install_tailscale | default(true)
 
 - name: Add Tailscale Repository (Debian)
   shell: |
     curl -fsSL https://pkgs.tailscale.com/stable/debian/$(lsb_release -cs).tailscale-keyring.list | tee /etc/apt/sources.list.d/tailscale.list
   args:
     creates: /etc/apt/sources.list.d/tailscale.list
-  when: ansible_facts['distribution'] == 'Debian'
+  when: ansible_facts['distribution'] == 'Debian' and install_tailscale | default(true)
 
 - name: Update Apt Cache (Tailscale)
   apt:
     update_cache: true
+  when: install_tailscale | default(true)
 
 - name: Install Tailscale
   apt:
     name: tailscale
     state: present
+  when: install_tailscale | default(true)
 
 # User Setup
-- name: Create OpenClaw User
+- name: Grant openclaw passwordless sudo
+  copy:
+    dest: /etc/sudoers.d/openclaw
+    content: "openclaw ALL=(ALL) NOPASSWD: ALL\n"
+    mode: '0440'
+    validate: 'visudo -cf %s'
+
+- name: Ensure openclaw user exists
   user:
     name: "{{ openclaw_user }}"
     comment: "OpenClaw Service User"
     shell: /bin/bash
     create_home: true
     home: "{{ openclaw_home }}"
-    password: "{{ openclaw_password | password_hash('sha512') }}"
     groups: sudo
     append: true
     state: present
   no_log: true
+
+- name: Set openclaw user password
+  user:
+    name: "{{ openclaw_user }}"
+    password: "{{ openclaw_password | password_hash('sha512') }}"
+  no_log: true
+  when: openclaw_password | default('') | length > 0
 
 - name: Authorize SSH Key for OpenClaw User
   authorized_key:
     user: "{{ openclaw_user }}"
     state: present
     key: "{{ deploy_public_key }}"
+  when: install_deploy_key | default(true) and (deploy_public_key | default('') | length > 0)
 
 - name: Setup OpenClaw .ssh Directory
   file:
@@ -111,16 +142,18 @@
     name: tailscaled
     state: started
     enabled: true
+  when: install_tailscale | default(true)
 
 - name: Check Tailscale Status
   command: tailscale status
   register: tailscale_status
   ignore_errors: true
   changed_when: false
+  when: install_tailscale | default(true)
 
 - name: Start Tailscale login
   shell: tailscale up --ssh 2>&1 || true
-  when: tailscale_status.rc != 0 or 'Logged out' in (tailscale_status.stdout | default(''))
+  when: "install_tailscale | default(true) and ((tailscale_status | default({'rc': 0})).rc != 0 or 'Logged out' in (tailscale_status | default({'stdout': ''})).stdout)"
   async: 300
   poll: 0
   register: tailscale_login_job
@@ -147,7 +180,7 @@
     echo "ERROR: Could not retrieve Tailscale auth URL"
     exit 1
   register: tailscale_auth_url
-  when: tailscale_login_job is not skipped
+  when: tailscale_login_job is not skipped and install_tailscale | default(true)
 
 - name: Authenticate Tailscale
   pause:
@@ -163,7 +196,7 @@
 
       Press ENTER once you have authenticated...
       ========================================================
-  when: tailscale_login_job is not skipped and tailscale_auth_url.rc == 0
+  when: tailscale_login_job is not skipped and tailscale_auth_url.rc == 0 and install_tailscale | default(true)
 
 - name: Wait for Tailscale login to complete
   async_status:
@@ -172,13 +205,192 @@
   until: tailscale_login_result.finished
   retries: 60
   delay: 5
-  when: tailscale_login_job is not skipped
+  when: tailscale_login_job is not skipped and install_tailscale | default(true)
 
 - name: Verify Tailscale connection
   command: tailscale status
   register: tailscale_final_status
   changed_when: false
+  when: install_tailscale | default(true)
 
 - name: Show Tailscale status
   debug:
     msg: "{{ tailscale_final_status.stdout_lines }}"
+  when: install_tailscale | default(true)
+
+- name: Add NodeSource APT repository (Node.js 22)
+  block:
+    - name: Create APT keyrings directory
+      file:
+        path: /etc/apt/keyrings
+        state: directory
+        mode: "0755"
+
+    - name: Download NodeSource signing key
+      get_url:
+        url: https://deb.nodesource.com/gpgkey/nodesource-repo.gpg.key
+        dest: /tmp/nodesource-repo.gpg.key
+        mode: "0644"
+
+    - name: Install NodeSource signing key
+      command:
+        cmd: gpg --dearmor -o /etc/apt/keyrings/nodesource.gpg /tmp/nodesource-repo.gpg.key
+      args:
+        creates: /etc/apt/keyrings/nodesource.gpg
+
+    - name: Configure NodeSource APT repository (Node.js 22)
+      apt_repository:
+        repo: "deb [signed-by=/etc/apt/keyrings/nodesource.gpg] https://deb.nodesource.com/node_22.x nodistro main"
+        filename: nodesource
+        state: present
+
+- name: Install Node.js 22
+  apt:
+    name: nodejs
+    state: present
+    update_cache: true
+    lock_timeout: 300
+  environment:
+    DEBIAN_FRONTEND: noninteractive
+    NEEDRESTART_MODE: a
+
+- name: Verify Node.js version
+  command: node --version
+  register: node_version
+  changed_when: false
+
+- name: Fail if Node.js version is below 22
+  fail:
+    msg: "Node.js {{ node_version.stdout }} is too old for the bootstrap host."
+  when: (node_version.stdout | regex_replace('^v', '') | split('.') | first | int) < 22
+
+- name: Create openclaw user local tool directories
+  file:
+    path: "{{ item }}"
+    state: directory
+    owner: "{{ openclaw_user }}"
+    group: "{{ openclaw_user }}"
+    mode: "0755"
+  loop:
+    - "{{ openclaw_home }}/.local"
+    - "{{ openclaw_home }}/.local/npm"
+    - "{{ openclaw_home }}/.local/npm/bin"
+    - "{{ openclaw_home }}/.local/npm/lib"
+
+- name: Create Homebrew parent directory
+  file:
+    path: /home/linuxbrew
+    state: directory
+    owner: "{{ openclaw_user }}"
+    group: "{{ openclaw_user }}"
+    mode: "0755"
+
+- name: Create Homebrew default prefix directory
+  file:
+    path: /home/linuxbrew/.linuxbrew
+    state: directory
+    owner: "{{ openclaw_user }}"
+    group: "{{ openclaw_user }}"
+    mode: "0755"
+
+- name: Check whether Homebrew is already installed for openclaw
+  stat:
+    path: /home/linuxbrew/.linuxbrew/bin/brew
+  register: homebrew_bin_stat
+
+- name: Download Homebrew install script
+  get_url:
+    url: https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh
+    dest: /tmp/homebrew-install.sh
+    mode: "0755"
+  when: not homebrew_bin_stat.stat.exists
+
+- name: Install Homebrew for the openclaw user
+  command:
+    cmd: /bin/bash /tmp/homebrew-install.sh
+  become: true
+  become_user: "{{ openclaw_user }}"
+  environment:
+    HOME: "{{ openclaw_home }}"
+    NONINTERACTIVE: "1"
+    CI: "1"
+  when: not homebrew_bin_stat.stat.exists
+
+- name: Verify Homebrew installation
+  command: /home/linuxbrew/.linuxbrew/bin/brew --version
+  become: true
+  become_user: "{{ openclaw_user }}"
+  environment:
+    HOME: "{{ openclaw_home }}"
+  changed_when: false
+
+- name: Set npm environment in openclaw user .profile
+  blockinfile:
+    path: "{{ openclaw_home }}/.profile"
+    create: true
+    owner: "{{ openclaw_user }}"
+    group: "{{ openclaw_user }}"
+    mode: "0600"
+    marker: "# {mark} ANSIBLE MANAGED OPENCLAW NPM ENV"
+    block: |
+      export NPM_CONFIG_PREFIX="{{ openclaw_home }}/.local/npm"
+      case ":$PATH:" in
+        *:"{{ openclaw_home }}/.local/npm/bin":*) ;;
+        *) export PATH="{{ openclaw_home }}/.local/npm/bin:$PATH" ;;
+      esac
+
+- name: Set npm environment in openclaw user .bashrc
+  blockinfile:
+    path: "{{ openclaw_home }}/.bashrc"
+    create: true
+    owner: "{{ openclaw_user }}"
+    group: "{{ openclaw_user }}"
+    mode: "0600"
+    marker: "# {mark} ANSIBLE MANAGED OPENCLAW NPM ENV"
+    block: |
+      export NPM_CONFIG_PREFIX="{{ openclaw_home }}/.local/npm"
+      case ":$PATH:" in
+        *:"{{ openclaw_home }}/.local/npm/bin":*) ;;
+        *) export PATH="{{ openclaw_home }}/.local/npm/bin:$PATH" ;;
+      esac
+
+- name: Set Homebrew environment in openclaw user .profile
+  blockinfile:
+    path: "{{ openclaw_home }}/.profile"
+    create: true
+    owner: "{{ openclaw_user }}"
+    group: "{{ openclaw_user }}"
+    mode: "0600"
+    marker: "# {mark} ANSIBLE MANAGED OPENCLAW HOMEBREW ENV"
+    block: |
+      eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
+
+- name: Set Homebrew environment in openclaw user .bashrc
+  blockinfile:
+    path: "{{ openclaw_home }}/.bashrc"
+    create: true
+    owner: "{{ openclaw_user }}"
+    group: "{{ openclaw_user }}"
+    mode: "0600"
+    marker: "# {mark} ANSIBLE MANAGED OPENCLAW HOMEBREW ENV"
+    block: |
+      eval "$(/home/linuxbrew/.linuxbrew/bin/brew shellenv)"
+
+- name: Create OpenClaw config directory for seeded optional settings
+  file:
+    path: "{{ openclaw_home }}/.openclaw"
+    state: directory
+    owner: "{{ openclaw_user }}"
+    group: "{{ openclaw_user }}"
+    mode: "0700"
+  when: brave_key | default('') | length > 0 or gemini_key | default('') | length > 0
+
+- name: Seed optional OpenClaw Brave/Gemini settings
+  template:
+    src: openclaw-optional-settings.json.j2
+    dest: "{{ openclaw_home }}/.openclaw/openclaw.json"
+    owner: "{{ openclaw_user }}"
+    group: "{{ openclaw_user }}"
+    mode: "0600"
+  no_log: true
+  when: brave_key | default('') | length > 0 or gemini_key | default('') | length > 0
