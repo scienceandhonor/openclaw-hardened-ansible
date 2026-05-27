@@ -1,9 +1,3 @@
-- name: Restart OpenClaw
-  systemd:
-    name: openclaw
-    state: restarted
-    daemon_reload: true
-
 - name: Restart SSH
   systemd:
     name: ssh

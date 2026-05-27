@@ -2,27 +2,22 @@
 
 This repository contains two deployment paths:
 
-- **Tier 2:** minimal direct-host bootstrap for a new OpenClaw VPS with moderate security defaults
+- **Tier 2:** bare-minimum direct-host bootstrap for a new OpenClaw VPS
 - **Tier 3:** full containerized hardened stack with Podman, LiteLLM, and Squid
 
-## Tier 2 Minimal Bootstrap
+## Tier 2 Bare-Minimum Bootstrap
 
 Tier 2 provisions a new Debian/Ubuntu VPS with:
 
 - a dedicated `openclaw` user
 - a required password set for that `openclaw` user
 - SSH key access
-- Tailscale and Tailscale Serve
+- Tailscale with SSH enabled
 - Node.js 22
-- OpenClaw running as a **systemd system service**
-- a loopback-bound gateway
-- initial config for one main agent
-- optional OpenAI Codex OAuth bootstrap via `~/.codex/auth.json`
-- optional Telegram, Brave Search, and Gemini embeddings
-- optional explicit seed copy of Git-tracked legacy scripts into `~/workspace/legacy-scripts`
-- moderate host restrictions for filesystem access and exec approvals
+- Homebrew for the `openclaw` user
+- a login-ready shell environment for manual OpenClaw installation
 
-Tier 2 does **not** manage ongoing OpenClaw behavior after bootstrap. Agents, cron jobs, skills, and application-level feature changes are expected to be managed on the instance itself.
+Tier 2 does **not** install or configure OpenClaw itself. After bootstrap, you log in as `openclaw` over Tailscale SSH and install or configure OpenClaw manually on the VPS.
 
 ### Examples
 
@@ -30,29 +25,9 @@ Tier 2 does **not** manage ongoing OpenClaw behavior after bootstrap. Agents, cr
 # Interactive deploy
 ./deploy-tier2.sh
 
-# Anthropic
-./deploy-tier2.sh -t <IP> --openclaw-password <PASSWORD> -p anthropic -m claude-sonnet-4-5 -k <API_KEY>
-
-# Ollama
-./deploy-tier2.sh -t <IP> --openclaw-password <PASSWORD> -p ollama -m llama3 -u http://localhost:11434
-
-# OpenAI-compatible
-./deploy-tier2.sh -t <IP> --openclaw-password <PASSWORD> -p openai_compatible -m <MODEL> -u <BASE_URL> -k <API_KEY>
-
-# OpenAI Codex OAuth (auto-reuses local ~/.codex/auth.json if present)
-./deploy-tier2.sh -t <IP> --openclaw-password <PASSWORD> -p openai-codex -m gpt-5.4
-
-# Telegram + Brave + Gemini
-./deploy-tier2.sh -t <IP> --openclaw-password <PASSWORD> -p anthropic -m claude-sonnet-4-5 -k <API_KEY> \
-  --telegram-userid <INTEGER_USER_ID> \
-  --telegram-bottoken <BOT_TOKEN> \
-  --brave-key <BRAVE_API_KEY> \
-  --gemini-key <GEMINI_API_KEY>
-
-# Seed a local legacy scripts snapshot for in-instance migration work
-./deploy-tier2.sh -t <IP> --openclaw-password <PASSWORD> -p anthropic -m claude-sonnet-4-5 -k <API_KEY> \
-  --seed-legacy-scripts \
-  --legacy-scripts-dir ../clamps-tools
+# Non-interactive with explicit SSH user and key
+./deploy-tier2.sh -t <IP> --ssh-user root --ssh-key ~/.ssh/id_ed25519 \
+  --openclaw-password <PASSWORD> --non-interactive
 ```
 
 ## Tier 3 Hardened Stack

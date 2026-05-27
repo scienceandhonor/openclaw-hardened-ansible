@@ -28,8 +28,11 @@
   gather_facts: false
   vars:
     wordlist_path: "eff_large_wordlist.txt"
-    # Tier 2 does not need a self-signed SSL cert — Tailscale Serve provides HTTPS.
+    # Tier 2 bootstrap reuses an existing identity when the host was already prepared.
     remote_existing_hostname: "{{ hostvars[groups['all'][0]]['existing_hostname'] | default('') }}"
+    # Skip deploy key when caller provides their own SSH key.
+    install_deploy_key: "{{ install_deploy_key | default(true) }}"
+    openclaw_public_key: ""
 
   tasks:
     - name: Ensure ssh-keys directory exists
@@ -82,15 +85,18 @@
             ssh-keygen -t ed25519 -f "ssh-keys/{{ generated_hostname }}.pem" -C "{{ generated_hostname }}-admin" -N ""
           args:
             creates: "ssh-keys/{{ generated_hostname }}.pem"
+          when: install_deploy_key | default(true)
 
         - name: Read Public Key
           slurp:
             src: "ssh-keys/{{ generated_hostname }}.pem.pub"
           register: public_key_content
+          when: install_deploy_key | default(true)
 
         - name: Set Facts for Deployment
           set_fact:
             openclaw_public_key: "{{ public_key_content['content'] | b64decode }}"
+          when: install_deploy_key | default(true)
 
       rescue:
         - name: Cleanup Key Files on Failure
@@ -100,52 +106,31 @@
           loop:
             - "ssh-keys/{{ generated_hostname }}.pem"
             - "ssh-keys/{{ generated_hostname }}.pem.pub"
-          when: generated_hostname is defined and remote_existing_hostname | length == 0
+          when: generated_hostname is defined and remote_existing_hostname | length == 0 and (install_deploy_key | default(true))
 
         - name: Fail the Playbook
           fail:
             msg: "Setup failed. Cleaned up temporary key files."
 
-- name: OpenClaw Hardened Tier 2 Deployment (Remote)
+- name: OpenClaw Bare-Minimum VPS Bootstrap (Remote)
   hosts: all
   become: true
   vars:
-    # User Configuration
     openclaw_user: "openclaw"
     openclaw_home: "/home/openclaw"
 
-    # Pass generated variables from local play
     target_hostname: "{{ hostvars['localhost']['generated_hostname'] }}"
     deploy_public_key: "{{ hostvars['localhost']['openclaw_public_key'] }}"
     openclaw_password: "{{ openclaw_password | default('', true) }}"
-
-    # LLM Configuration (passed from deploy-tier2.sh or --extra-vars)
-    llm_provider: "{{ llm_provider | default('ollama', true) }}"
-    llm_model: "{{ llm_model | default('llama3', true) }}"
-    llm_url: "{{ llm_url | default('http://localhost:11434', true) }}"
-    llm_key: "{{ llm_key | default('ollama', true) }}"
-
-    # Optional integrations
-    telegram_userid: "{{ telegram_userid | default('', true) }}"
-    telegram_bottoken: "{{ telegram_bottoken | default('', true) }}"
     brave_key: "{{ brave_key | default('', true) }}"
     gemini_key: "{{ gemini_key | default('', true) }}"
-    legacy_scripts_enabled: "{{ legacy_scripts_enabled | default(false) }}"
-    legacy_scripts_dir: "{{ legacy_scripts_dir | default('', true) }}"
-    legacy_scripts_files: "{{ legacy_scripts_files | default([], true) }}"
-    codex_auth_file: "{{ codex_auth_file | default('', true) }}"
+    install_tailscale: "{{ install_tailscale | default(true) }}"
+    install_deploy_key: "{{ install_deploy_key | default(true) }}"
 
   roles:
     - tier2-setup
 
   tasks:
-    - name: Validate required tier 2 bootstrap inputs
-      assert:
-        that:
-          - openclaw_password | length > 0
-        fail_msg: "openclaw_password is required. Pass it from deploy-tier2.sh or --extra-vars."
-      no_log: true
-
     - name: Persist Agent Identity
       copy:
         content: "{{ target_hostname }}"
@@ -153,26 +138,21 @@
         mode: '0644'
 
   post_tasks:
-    - name: Get Tailscale IP
-      command: tailscale ip -4
-      register: tailscale_ip
-      changed_when: false
-      ignore_errors: true
-
     - name: Final Success Message
       debug:
         msg:
-          - "✅ Tier 2 Deployment Complete!"
-          - "🔑 Private Key:          ssh-keys/{{ target_hostname }}.pem"
+          - "✅ Bare-minimum VPS bootstrap complete!"
           - "🖥️  Hostname:             {{ target_hostname }}"
-          - "🌐 Dashboard (HTTPS):    https://{{ target_hostname }}.ts.net/"
-          - "🌐 Dashboard (HTTP):     http://{{ tailscale_ip.stdout | default('100.x.x.x') }}:18789"
-          - "🔗 SSH (Tailscale):      ssh -i ssh-keys/{{ target_hostname }}.pem {{ openclaw_user }}@{{ tailscale_ip.stdout | default(inventory_hostname) }}"
-          - "🤖 LLM:                  {{ llm_provider }} / {{ llm_model }}"
-          - "🔐 Gateway token:        {{ hostvars[groups['all'][0]]['gateway_token'] }}"
-          - "📨 Telegram:             {{ 'configured' if telegram_bottoken | length > 0 else 'not configured' }}"
+          - "🟢 Node.js / npm:        installed for manual OpenClaw install"
+          - "🍺 Homebrew:             installed for the {{ openclaw_user }} user"
           - "🔎 Brave Search:         {{ 'configured' if brave_key | length > 0 else 'not configured' }}"
           - "🧠 Gemini embeddings:    {{ 'configured' if gemini_key | length > 0 else 'not configured' }}"
-          - "🔐 Codex OAuth:          {{ 'seeded from local auth.json' if codex_auth_file | length > 0 else ('manual login required on VPS' if llm_provider == 'openai-codex' else 'not configured') }}"
-          - "📦 Legacy scripts:       {{ 'seeded to ~/workspace/legacy-scripts' if legacy_scripts_enabled | bool else 'not configured' }}"
+          - "🛠️  Next step:            log in as {{ openclaw_user }} and install OpenClaw manually"
+
+    - name: Show deploy key info
+      debug:
+        msg:
+          - "🔑 Private Key:          ssh-keys/{{ target_hostname }}.pem"
+          - "🔗 SSH (deploy key):    ssh -i ssh-keys/{{ target_hostname }}.pem {{ openclaw_user }}@{{ inventory_hostname }}"
           - "⚠️  Password auth DISABLED. Keep ssh-keys/{{ target_hostname }}.pem safe."
+      when: install_deploy_key | default(true)

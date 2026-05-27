@@ -1,5 +1,5 @@
 ---
-# Tier 2: Direct host deployment (no containers)
+# Tier 2: Bare-minimum host bootstrap (no containers)
 
 - name: Detect Operating System
   debug:
@@ -13,9 +13,6 @@
   fail:
     msg: "Unsupported OS: {{ ansible_facts['os_family'] }}. Tier 2 supports Debian/Ubuntu only."
   when: ansible_facts['os_family'] not in ['Debian']
-
-- name: Install and Configure OpenClaw (Tier 2 — direct host)
-  include_tasks: install.yml
 
 - name: Configure Minimal Host Security (SSH hardening)
   include_tasks: security.yml
